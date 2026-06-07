@@ -1,4 +1,4 @@
-# Java Panel Terminal Lab
+# Terminal-Console-Monitor
 
 > A small Java-based command bridge for educational sandbox, runtime, and server-panel behavior testing.
 
