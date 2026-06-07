@@ -15,14 +15,14 @@ public class Test {
     private static Path logFile;
     private static Path currentDir = Paths.get("").toAbsolutePath().normalize();
 
-    private static int COMMAND_TIMEOUT_SECONDS = 0; // 0 = không giới hạn. Mặc định là 0
+    private static int COMMAND_TIMEOUT_SECONDS = 0; // 0 = unlimited. Default is 0
 
     public static void main(String[] args) {
         try {
             prepareLogs();
 
             System.out.println(GREEN + "Panel Terminal started." + RESET);
-            System.out.println(YELLOW + "Gõ help để xem lệnh hỗ trợ." + RESET);
+            System.out.println(YELLOW + "Type help to see supported commands." + RESET);
             System.out.println("Current dir: " + currentDir);
             System.out.println("Log file: " + logFile.toAbsolutePath());
             System.out.println();
@@ -67,14 +67,14 @@ public class Test {
         }
 
         if (command.equalsIgnoreCase("exit")) {
-            System.out.println(YELLOW + "Lệnh exit đã bị chặn để tránh server offline." + RESET);
-            System.out.println(YELLOW + "Muốn tắt thật thì gõ: shutdown-terminal" + RESET);
+            System.out.println(YELLOW + "The exit command is blocked to prevent server offline." + RESET);
+            System.out.println(YELLOW + "To actually shut down, type: shutdown-terminal" + RESET);
             writeLog("[BLOCKED EXIT]\n");
             return true;
         }
 
         if (command.equalsIgnoreCase("shutdown-terminal")) {
-            System.out.println(RED + "Đang tắt Panel Terminal..." + RESET);
+            System.out.println(RED + "Shutting down Panel Terminal..." + RESET);
             writeLog("[SHUTDOWN]\n");
             System.exit(0);
             return true;
@@ -115,7 +115,7 @@ public class Test {
                 System.out.println(CYAN + "Current dir: " + currentDir + RESET);
                 writeLog("[CD] " + currentDir + "\n");
             } else {
-                System.out.println(RED + "Không tìm thấy thư mục: " + newDir + RESET);
+                System.out.println(RED + "Directory not found: " + newDir + RESET);
                 writeLog("[CD ERROR] Directory not found: " + newDir + "\n");
             }
 
@@ -129,22 +129,22 @@ public class Test {
         String lower = command.toLowerCase();
 
         if (lower.equals("su") || lower.startsWith("su ")) {
-            System.out.println(RED + "Không chạy su trong panel console này được." + RESET);
-            System.out.println(YELLOW + "Lý do: su cần terminal tương tác thật và password root." + RESET);
+            System.out.println(RED + "Cannot run su in this console panel." + RESET);
+            System.out.println(YELLOW + "Reason: su requires a real interactive terminal and root password." + RESET);
             writeLog("[BLOCKED] su command\n");
             return true;
         }
 
         if (lower.equals("sudo") || lower.startsWith("sudo ")) {
-            System.out.println(RED + "Không dùng sudo được nếu host chưa cấp quyền sudo." + RESET);
-            System.out.println(YELLOW + "Muốn cài package bằng apt thì cần quyền root từ nhà cung cấp host." + RESET);
+            System.out.println(RED + "Cannot use sudo if the host has not granted sudo permissions." + RESET);
+            System.out.println(YELLOW + "To install packages with apt, you need root permissions from the hosting provider." + RESET);
             writeLog("[BLOCKED] sudo command\n");
             return true;
         }
 
         if (lower.startsWith("apt install") || lower.startsWith("apt-get install")) {
-            System.out.println(RED + "apt install cần quyền root nên panel user hiện tại không chạy được." + RESET);
-            System.out.println(YELLOW + "Có thể dùng: apt search ten_goi hoặc tải binary portable vào thư mục server." + RESET);
+            System.out.println(RED + "apt install requires root permissions, so the current panel user cannot run it." + RESET);
+            System.out.println(YELLOW + "You can use: apt search package_name or download portable binary to server folder." + RESET);
             writeLog("[BLOCKED] apt install command\n");
             return true;
         }
@@ -156,7 +156,7 @@ public class Test {
                 lower.equals("top") ||
                 lower.equals("htop")
         ) {
-            System.out.println(RED + "Lệnh này cần terminal tương tác thật nên dễ treo trong panel." + RESET);
+            System.out.println(RED + "This command requires a real interactive terminal, so it may hang in this panel." + RESET);
             writeLog("[BLOCKED] interactive command\n");
             return true;
         }
@@ -212,8 +212,8 @@ public class Test {
                 if (!finished) {
                     process.destroyForcibly();
                 
-                    System.out.println(RED + "Command bị dừng vì chạy quá "
-                            + COMMAND_TIMEOUT_SECONDS + " giây." + RESET);
+                    System.out.println(RED + "Command stopped because it ran over "
+                            + COMMAND_TIMEOUT_SECONDS + " seconds." + RESET);
                 
                     writeLog("[TIMEOUT] Command killed after "
                             + COMMAND_TIMEOUT_SECONDS + " seconds\n");
@@ -243,7 +243,7 @@ public class Test {
             }
 
         } catch (Exception e) {
-            System.out.println(RED + "Lỗi khi chạy command: " + e.getMessage() + RESET);
+            System.out.println(RED + "Error running command: " + e.getMessage() + RESET);
 
             try {
                 writeLog("[ERROR] " + e.getMessage() + "\n");
@@ -256,16 +256,16 @@ public class Test {
     }
 
     private static void printHelp() throws IOException {
-        System.out.println(YELLOW + "Các lệnh hỗ trợ:" + RESET);
-        System.out.println("help                  - Xem hướng dẫn");
-        System.out.println("pwd                   - Xem thư mục hiện tại");
-        System.out.println("cd <folder>           - Chuyển thư mục");
-        System.out.println("ls                    - Xem file");
-        System.out.println("java -version         - Xem Java version");
-        System.out.println("apt search <package>  - Tìm package, không cần root");
-        System.out.println("shutdown-terminal     - Tắt app");
+        System.out.println(YELLOW + "Supported commands:" + RESET);
+        System.out.println("help                  - View guide");
+        System.out.println("pwd                   - View current directory");
+        System.out.println("cd <folder>           - Change directory");
+        System.out.println("ls                    - View files");
+        System.out.println("java -version         - View Java version");
+        System.out.println("apt search <package>  - Search package, no root required");
+        System.out.println("shutdown-terminal     - Shutdown app");
         System.out.println();
-        System.out.println(RED + "Không hỗ trợ tốt:" + RESET);
+        System.out.println(RED + "Not well supported:" + RESET);
         System.out.println("su, sudo, apt install, nano, vim, top, htop");
 
         writeLog("[HELP]\n");
