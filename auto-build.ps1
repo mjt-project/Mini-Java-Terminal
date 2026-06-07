@@ -15,11 +15,11 @@ $Watcher.EnableRaisingEvents = $true
 
 Register-ObjectEvent -InputObject $Watcher -EventName Changed -SourceIdentifier $SourceId | Out-Null
 
-Write-Host ">>> Dang theo doi file $File... Ctrl + S la build JAR tu dong! <<<" -ForegroundColor Cyan
-Write-Host ">>> Nhan Ctrl + C de dung. <<<" -ForegroundColor DarkGray
+Write-Host ">>> Monitoring file $File... Ctrl + S builds JAR automatically! <<<" -ForegroundColor Cyan
+Write-Host ">>> Press Ctrl + C to stop. <<<" -ForegroundColor DarkGray
 
 function Build-Jar {
-    Write-Host "`n[+] Phat hien thay doi! Dang rebuild..." -ForegroundColor Yellow
+    Write-Host "`n[+] Change detected! Rebuilding..." -ForegroundColor Yellow
 
     Start-Sleep -Milliseconds 700
 
@@ -30,7 +30,7 @@ function Build-Jar {
     javac $File
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "[ERROR] Code Java bi loi, khong build duoc!" -ForegroundColor Red
+        Write-Host "[ERROR] Java code has errors, cannot build!" -ForegroundColor Red
         return
     }
 
@@ -39,9 +39,9 @@ function Build-Jar {
     jar cvfm $JarName $ManifestFile "$MainClass.class" > $null
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "[SUCCESS] Da cap nhat file $JarName moi nhat!" -ForegroundColor Green
+        Write-Host "[SUCCESS] Updated file $JarName successfully!" -ForegroundColor Green
     } else {
-        Write-Host "[ERROR] Loi khi tao file JAR!" -ForegroundColor Red
+        Write-Host "[ERROR] Error creating JAR file!" -ForegroundColor Red
     }
 }
 
@@ -65,5 +65,5 @@ finally {
     $Watcher.EnableRaisingEvents = $false
     $Watcher.Dispose()
 
-    Write-Host "`n>>> Da dung auto build. <<<" -ForegroundColor DarkGray
+    Write-Host "`n>>> Auto build stopped. <<<" -ForegroundColor DarkGray
 }
