@@ -22,7 +22,6 @@ public class Test {
             prepareLogs();
 
             System.out.println(GREEN + "Panel Terminal started." + RESET);
-            System.out.println(CYAN + "Java đang làm trung gian command cho panel." + RESET);
             System.out.println(YELLOW + "Gõ help để xem lệnh hỗ trợ." + RESET);
             System.out.println("Current dir: " + currentDir);
             System.out.println("Log file: " + logFile.toAbsolutePath());
