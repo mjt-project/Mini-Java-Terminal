@@ -1,219 +1,92 @@
-# Terminal-Console-Monitor
+# Mini Java Terminal
 
-> A small Java-based command bridge for educational sandbox, runtime, and server-panel behavior testing.
+> A lightweight Java terminal panel for command execution, logging, Cloudflare DDNS, and runtime utilities.
 
 ## Overview
 
-Java Panel Terminal Lab is a simple Java console application designed for learning how command execution, process handling, working directories, logs, and server-panel consoles behave in controlled environments.
+Mini Java Terminal is a simple Java console application for running system commands through a server-panel style terminal. It is designed for learning, controlled testing, and observing how Java handles command execution, process output, working directories, and logs.
 
-The project was created for educational and authorized testing purposes only. It is intended to help developers, students, and hosting providers understand how a Java process can interact with the underlying operating system through standard input, output, and `ProcessBuilder`.
-
-This repository does not provide tools for bypassing permissions, escaping sandboxes, abusing shared hosting, mining cryptocurrency, or attacking infrastructure.
+This project is intended for authorized environments only.
 
 ## Features
 
-* Interactive command input from a Java console
-* Cross-platform command execution using:
+* Interactive command input
+* Real-time command output
+* Working directory control with `cd` and `pwd`
+* Automatic log files in `logs/`
+* ANSI-colored terminal messages
+* Configurable command timeout
+* Basic blocking for commands that may freeze panel consoles
+* Public IPv4 checking
+* Cloudflare DDNS support
 
-  * `cmd.exe /c` on Windows
-  * `bash -lc` on Linux/macOS
-* Current working directory tracking with `cd` and `pwd`
-* Automatic log creation in the `logs/` directory
-* ANSI-colored console messages
-* Basic command blocking for commands that are commonly unsafe or unsuitable for web panel consoles
-* Optional command timeout behavior
+## Cloudflare DDNS
 
-  * `0` means no timeout
-  * positive values limit command runtime in seconds
+Cloudflare DNS update support is completed.
 
-## Educational Use Cases
+Mini Java Terminal can update a Cloudflare DNS A record to the current public IPv4 address of the panel host.
 
-This project can be used to study:
+Available commands:
 
-* How Java communicates with system processes
-* How `ProcessBuilder` starts shell commands
-* How server panels pass input into a running Java application
-* How command output can be captured and logged
-* How working directory state can be managed inside a long-running Java process
-* Why sandboxing, process limits, and permission boundaries matter in hosting environments
+```text
+cloudflare-set token <token>
+cloudflare-set zone <zone_id>
+cloudflare-set name <domain>
+cloudflare-set proxied false
+cloudflare-set ttl 120
+cloudflare-set interval 300
+cloudflare-show
+cloudflare-ddns-once
+cloudflare-ddns-start
+cloudflare-ddns-stop
+cloudflare-ddns-status
+```
 
-## What This Project Is Not
+Configuration is stored in:
 
-This project is not:
+```text
+terminal-state.properties
+```
 
-* A hacking tool
-* A privilege escalation tool
-* A sandbox escape
-* A cryptocurrency miner
-* A botnet component
-* A malware loader
-* A bypass tool for hosting restrictions
-* A replacement for a real VPS or container platform
-
-Do not use this project to violate the rules of any hosting provider, school system, company infrastructure, or third-party server.
-
-## Responsible Use Notice
-
-Only run this project in environments where you have explicit permission.
-
-You are responsible for how you use this code. Running arbitrary system commands can be dangerous. A command bridge can read, modify, or delete files depending on the permissions of the user account running the Java process.
-
-Recommended environments:
-
-* Local development machine
-* Personal VPS
-* Private lab server
-* Authorized testing environment
-* Hosting sandbox where testing has been approved
-
-Not recommended:
-
-* Public shared hosting without permission
-* School or company systems without approval
-* Third-party servers
-* Production environments
-
-## Safety Notes
-
-The application contains basic command blocking for commands such as:
-
-* `su`
-* `sudo`
-* `apt install`
-* `apt-get install`
-* `nano`
-* `vim`
-* `vi`
-* `top`
-* `htop`
-
-These blocks are basic guardrails only. They are not a security sandbox. Real security should be enforced by the operating system, container runtime, hosting panel, and resource control policies.
-
-## Requirements
-
-* Java 11 or newer
-* A terminal or server console that supports standard input and output
+Do not commit this file to GitHub because it may contain private tokens.
 
 ## Build
 
-Compile the Java file:
-
 ```bash
-javac Test.java
+mvn clean package
 ```
 
-Create a JAR file:
+Output:
 
-```bash
-echo "Main-Class: Test" > manifest.txt
-jar cvfm server.jar manifest.txt Test.class
+```text
+target/server.jar
 ```
 
-Run:
+## Run
 
 ```bash
-java -jar server.jar
+java -jar target/server.jar
 ```
 
 ## Basic Commands
-
-Inside the Java console:
 
 ```text
 help
 pwd
 cd <folder>
-ls
-java -version
+clear
+public-ip
+timeout
+timeout <seconds>
 shutdown-terminal
 ```
 
-Example:
+## Safety Notice
 
-```text
-cd logs
-pwd
-ls
-```
+This project can execute system commands with the permissions of the user running the Java process. Use it only in environments where you have permission.
 
-## Timeout Configuration
-
-The command timeout is controlled by:
-
-```java
-private static int COMMAND_TIMEOUT_SECONDS = 0;
-```
-
-Behavior:
-
-```text
-0  = no timeout
-60 = stop command after 60 seconds
-300 = stop command after 5 minutes
-```
-
-Use a positive timeout for safer testing. Use `0` only in a controlled environment where long-running commands are expected.
-
-## Logs
-
-Logs are automatically created in:
-
-```text
-logs/
-```
-
-Each session creates a log file with a timestamped filename.
-
-The log may contain command input and command output. Do not use this project to process secrets, passwords, private tokens, API keys, or sensitive data.
-
-## Security Considerations
-
-This project demonstrates why unrestricted command execution should be treated carefully.
-
-If you are a hosting provider, server-panel developer, or sandbox designer, consider enforcing:
-
-* Per-process CPU limits
-* RAM limits
-* Disk quota limits
-* Process count limits
-* Network access policies
-* Child process tracking
-* Automatic cleanup when the main server process stops
-* Separation between game commands and host shell commands
-* Clear user-facing policy for allowed and disallowed runtime behavior
-
-## Repository Scope
-
-This repository only contains the Java source code and documentation.
-
-It should not include:
-
-* Prebuilt third-party binaries
-* Operating system images
-* Firmware blobs
-* Disk images
-* Credentials
-* Private server files
-* Hosting provider files
-
-If additional third-party tools are used during personal experiments, users must obtain them from their official sources and comply with their respective licenses.
+It is not a hacking tool, sandbox escape, privilege escalation tool, malware loader, miner, or bypass tool.
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0.
-
-Add a `LICENSE` file containing the full GPL-3.0 license text.
-
-Suggested SPDX identifier for source files:
-
-```text
-SPDX-License-Identifier: GPL-3.0-or-later
-```
-
-## Disclaimer
-
-This project is provided for educational and research purposes only.
-
-The author is not responsible for misuse, damage, data loss, account suspension, service disruption, or policy violations caused by improper use of this project.
-
-Use responsibly, only with permission, and only in environments where you are authorized to test.
+GPL-3.0-or-later
