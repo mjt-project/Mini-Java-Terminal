@@ -1,22 +1,22 @@
-$MainClass = "terminal.Main"
-$JarName = "server.jar"
-$SourceIdPrefix = "AutoBuildJavaTerminalConsoleMonitor"
+$SourceIdPrefix = "AutoBuildMiniJavaTerminal"
 
 # Script nằm trong scripts/, repo root là thư mục cha
 $ScriptDir = $PSScriptRoot
 $RepoRoot = Split-Path $ScriptDir -Parent
 
-$SourceDir = Join-Path $RepoRoot "src"
-$BuildDir = Join-Path $RepoRoot "build/classes"
+$SourceDir = Join-Path $RepoRoot "scr"
 $DistDir = Join-Path $RepoRoot "dist"
-$JarFile = Join-Path $DistDir $JarName
-$ManifestFile = Join-Path $RepoRoot "manifest.txt"
+$PomFile = Join-Path $RepoRoot "pom.xml"
+
+$TargetJar = Join-Path $RepoRoot "target\server.jar"
+$DistJar = Join-Path $DistDir "server.jar"
 
 $SourceIds = @(
-    "$SourceIdPrefix-Changed",
-    "$SourceIdPrefix-Created",
-    "$SourceIdPrefix-Deleted",
-    "$SourceIdPrefix-Renamed"
+    "$SourceIdPrefix-Java-Changed",
+    "$SourceIdPrefix-Java-Created",
+    "$SourceIdPrefix-Java-Deleted",
+    "$SourceIdPrefix-Java-Renamed",
+    "$SourceIdPrefix-Pom-Changed"
 )
 
 function Clear-AutoBuildEvents {
@@ -27,77 +27,80 @@ function Clear-AutoBuildEvents {
 }
 
 function Invoke-JarBuild {
-    Write-Host "`n[+] Dang rebuild project..." -ForegroundColor Yellow
+    Write-Host "`n[+] Dang build bang Maven..." -ForegroundColor Yellow
 
-    Start-Sleep -Milliseconds 500
+    if (!(Test-Path $PomFile)) {
+        Write-Host "[ERROR] Khong tim thay pom.xml: $PomFile" -ForegroundColor Red
+        return
+    }
 
     if (!(Test-Path $SourceDir)) {
         Write-Host "[ERROR] Khong tim thay thu muc source: $SourceDir" -ForegroundColor Red
         return
     }
 
-    $SourceFiles = Get-ChildItem $SourceDir -Recurse -Filter "*.java" | Select-Object -ExpandProperty FullName
+    Push-Location $RepoRoot
 
-    if ($SourceFiles.Count -eq 0) {
-        Write-Host "[ERROR] Khong tim thay file .java nao trong: $SourceDir" -ForegroundColor Red
-        return
-    }
+    try {
+        # Build bang Maven de gom dependency vao shaded jar
+        & mvn -q -DskipTests package
 
-    # Tao thu muc build/dist
-    New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
-    New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[ERROR] Maven build that bai!" -ForegroundColor Red
+            return
+        }
 
-    # Xoa class cu
-    Get-ChildItem $BuildDir -Recurse -Force -ErrorAction SilentlyContinue |
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        if (!(Test-Path $TargetJar)) {
+            Write-Host "[ERROR] Khong tim thay target jar: $TargetJar" -ForegroundColor Red
+            return
+        }
 
-    # Bien dich tat ca file Java trong src/
-    & javac -encoding UTF-8 -d $BuildDir $SourceFiles
+        New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
+        Copy-Item $TargetJar $DistJar -Force
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[ERROR] Code Java bi loi, khong build duoc!" -ForegroundColor Red
-        return
-    }
+        $size = [Math]::Round((Get-Item $DistJar).Length / 1KB, 2)
 
-    # Tao manifest, khong dung BOM
-    [System.IO.File]::WriteAllText(
-        $ManifestFile,
-        "Main-Class: $MainClass`r`n",
-        [System.Text.Encoding]::ASCII
-    )
+        Write-Host "[SUCCESS] Da cap nhat $DistJar ($size KB)" -ForegroundColor Green
+        Write-Host "[INFO] File dung de upload/chay: dist\server.jar" -ForegroundColor Cyan
 
-    # Dong goi JAR
-    & jar cfm $JarFile $ManifestFile -C $BuildDir . > $null
-
-    if ($LASTEXITCODE -eq 0) {
-        $size = [Math]::Round((Get-Item $JarFile).Length / 1KB, 2)
-        Write-Host "[SUCCESS] Da cap nhat $JarFile ($size KB)" -ForegroundColor Green
-    } else {
-        Write-Host "[ERROR] Loi khi tao file JAR!" -ForegroundColor Red
+    } finally {
+        Pop-Location
     }
 }
 
 Clear-AutoBuildEvents
 
 New-Item -ItemType Directory -Force -Path $SourceDir | Out-Null
-New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 
-$Watcher = New-Object System.IO.FileSystemWatcher
-$Watcher.Path = $SourceDir
-$Watcher.Filter = "*.java"
-$Watcher.NotifyFilter = [System.IO.NotifyFilters]'LastWrite, Size, FileName, CreationTime'
-$Watcher.IncludeSubdirectories = $true
-$Watcher.EnableRaisingEvents = $true
+# Watch file Java trong scr/
+$JavaWatcher = New-Object System.IO.FileSystemWatcher
+$JavaWatcher.Path = $SourceDir
+$JavaWatcher.Filter = "*.java"
+$JavaWatcher.NotifyFilter = [System.IO.NotifyFilters]'LastWrite, Size, FileName, CreationTime'
+$JavaWatcher.IncludeSubdirectories = $true
+$JavaWatcher.EnableRaisingEvents = $true
 
-Register-ObjectEvent -InputObject $Watcher -EventName Changed -SourceIdentifier "$SourceIdPrefix-Changed" | Out-Null
-Register-ObjectEvent -InputObject $Watcher -EventName Created -SourceIdentifier "$SourceIdPrefix-Created" | Out-Null
-Register-ObjectEvent -InputObject $Watcher -EventName Deleted -SourceIdentifier "$SourceIdPrefix-Deleted" | Out-Null
-Register-ObjectEvent -InputObject $Watcher -EventName Renamed -SourceIdentifier "$SourceIdPrefix-Renamed" | Out-Null
+Register-ObjectEvent -InputObject $JavaWatcher -EventName Changed -SourceIdentifier "$SourceIdPrefix-Java-Changed" | Out-Null
+Register-ObjectEvent -InputObject $JavaWatcher -EventName Created -SourceIdentifier "$SourceIdPrefix-Java-Created" | Out-Null
+Register-ObjectEvent -InputObject $JavaWatcher -EventName Deleted -SourceIdentifier "$SourceIdPrefix-Java-Deleted" | Out-Null
+Register-ObjectEvent -InputObject $JavaWatcher -EventName Renamed -SourceIdentifier "$SourceIdPrefix-Java-Renamed" | Out-Null
 
-Write-Host ">>> Dang theo doi thu muc: $SourceDir" -ForegroundColor Cyan
-Write-Host ">>> Moi lan luu file .java se build ra: $JarFile" -ForegroundColor Cyan
-Write-Host ">>> Main-Class: $MainClass" -ForegroundColor DarkCyan
+# Watch pom.xml
+$PomWatcher = New-Object System.IO.FileSystemWatcher
+$PomWatcher.Path = $RepoRoot
+$PomWatcher.Filter = "pom.xml"
+$PomWatcher.NotifyFilter = [System.IO.NotifyFilters]'LastWrite, Size, FileName'
+$PomWatcher.IncludeSubdirectories = $false
+$PomWatcher.EnableRaisingEvents = $true
+
+Register-ObjectEvent -InputObject $PomWatcher -EventName Changed -SourceIdentifier "$SourceIdPrefix-Pom-Changed" | Out-Null
+
+Write-Host ">>> Mini Java Terminal Auto Build" -ForegroundColor Cyan
+Write-Host ">>> Dang theo doi source: $SourceDir" -ForegroundColor Cyan
+Write-Host ">>> Dang theo doi pom.xml: $PomFile" -ForegroundColor Cyan
+Write-Host ">>> Output: $DistJar" -ForegroundColor Cyan
+Write-Host ">>> Build tool: Maven" -ForegroundColor DarkCyan
 Write-Host ">>> Nhan Ctrl + C de dung." -ForegroundColor DarkGray
 
 # Build 1 lan khi vua mo script
@@ -105,13 +108,13 @@ Invoke-JarBuild
 
 try {
     while ($true) {
-        $event = Wait-Event
+        $autoBuildEvent = Wait-Event
 
-        if ($event.SourceIdentifier -like "$SourceIdPrefix-*") {
-            Remove-Event -EventIdentifier $event.EventIdentifier
+        if ($autoBuildEvent.SourceIdentifier -like "$SourceIdPrefix-*") {
+            Remove-Event -EventIdentifier $autoBuildEvent.EventIdentifier
 
             # Debounce: tranh build nhieu lan khi Ctrl + S
-            Start-Sleep -Milliseconds 1000
+            Start-Sleep -Milliseconds 1200
 
             foreach ($id in $SourceIds) {
                 Get-Event -SourceIdentifier $id -ErrorAction SilentlyContinue | Remove-Event
@@ -124,8 +127,11 @@ try {
 finally {
     Clear-AutoBuildEvents
 
-    $Watcher.EnableRaisingEvents = $false
-    $Watcher.Dispose()
+    $JavaWatcher.EnableRaisingEvents = $false
+    $JavaWatcher.Dispose()
+
+    $PomWatcher.EnableRaisingEvents = $false
+    $PomWatcher.Dispose()
 
     Write-Host "`n>>> Da dung auto build. <<<" -ForegroundColor DarkGray
 }
