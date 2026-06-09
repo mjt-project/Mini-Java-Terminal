@@ -1,7 +1,9 @@
-# Java build files
+# Java / Maven build files
 *.class
 build/
-dist/*.jar
+target/
+dist/*
+!dist/.gitkeep
 
 # Runtime logs
 logs/
@@ -9,9 +11,8 @@ logs/
 
 # Local state/config
 terminal-state.properties
-cf-ddns.properties
-cf-last-ip.txt
-cloudflare-logs/
+sftp-hostkey.ser
+ssh-hostkey.ser
 
 # IDE
 .vscode/
