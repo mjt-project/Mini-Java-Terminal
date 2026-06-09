@@ -8,8 +8,6 @@
 v2.2.24
 ```
 
-This version includes small refactors and runtime improvements before the Web Panel feature is added.
-
 ## Overview
 
 Mini Java Terminal is a lightweight Java console application designed to run controlled command execution through a server-panel style terminal.
