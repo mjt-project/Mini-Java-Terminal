@@ -1,10 +1,10 @@
 $SourceIdPrefix = "AutoBuildMiniJavaTerminal"
 
-# Script nằm trong scripts/, repo root là thư mục cha
-$ScriptDir = $PSScriptRoot
-$RepoRoot = Split-Path $ScriptDir -Parent
+# srcipt nằm trong srcipts/, repo root là thư mục cha
+$srciptDir = $PSsrciptRoot
+$RepoRoot = Split-Path $srciptDir -Parent
 
-$SourceDir = Join-Path $RepoRoot "scr"
+$SourceDir = Join-Path $RepoRoot "src"
 $DistDir = Join-Path $RepoRoot "dist"
 $PomFile = Join-Path $RepoRoot "pom.xml"
 
@@ -21,7 +21,7 @@ $SourceIds = @(
 
 function Clear-AutoBuildEvents {
     foreach ($id in $SourceIds) {
-        Get-EventSubscriber -SourceIdentifier $id -ErrorAction SilentlyContinue | Unregister-Event
+        Get-EventSubsrciber -SourceIdentifier $id -ErrorAction SilentlyContinue | Unregister-Event
         Get-Event -SourceIdentifier $id -ErrorAction SilentlyContinue | Remove-Event
     }
 }
@@ -73,7 +73,7 @@ Clear-AutoBuildEvents
 New-Item -ItemType Directory -Force -Path $SourceDir | Out-Null
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 
-# Watch file Java trong scr/
+# Watch file Java trong src/
 $JavaWatcher = New-Object System.IO.FileSystemWatcher
 $JavaWatcher.Path = $SourceDir
 $JavaWatcher.Filter = "*.java"
@@ -103,7 +103,7 @@ Write-Host ">>> Output: $DistJar" -ForegroundColor Cyan
 Write-Host ">>> Build tool: Maven" -ForegroundColor DarkCyan
 Write-Host ">>> Nhan Ctrl + C de dung." -ForegroundColor DarkGray
 
-# Build 1 lan khi vua mo script
+# Build 1 lan khi vua mo srcipt
 Invoke-JarBuild
 
 try {
