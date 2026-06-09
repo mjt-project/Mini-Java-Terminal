@@ -1,24 +1,19 @@
-# Compiled class file
+# Java / Maven build files
 *.class
+build/
+target/
+dist/*
+!dist/.gitkeep
 
-# Log file
+# Runtime logs
+logs/
 *.log
 
-# BlueJ files
-*.ctxt
+# Local state/config
+terminal-state.properties
+sftp-hostkey.ser
+ssh-hostkey.ser
 
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
+# IDE
+.vscode/
+.idea/

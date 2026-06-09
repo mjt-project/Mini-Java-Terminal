@@ -1,150 +1,230 @@
-# Terminal-Console-Monitor
+# Mini Java Terminal
 
-> A small Java-based command bridge for educational sandbox, runtime, and server-panel behavior testing.
+> A lightweight Java terminal panel for command execution, logging, Cloudflare DDNS, SSH/SFTP access, and runtime utilities.
+
+## Version
+
+```text
+v2.2.24
+```
 
 ## Overview
 
-Java Panel Terminal Lab is a simple Java console application designed for learning how command execution, process handling, working directories, logs, and server-panel consoles behave in controlled environments.
+Mini Java Terminal is a lightweight Java console application designed to run controlled command execution through a server-panel style terminal.
 
-The project was created for educational and authorized testing purposes only. It is intended to help developers, students, and hosting providers understand how a Java process can interact with the underlying operating system through standard input, output, and `ProcessBuilder`.
+The project is built for learning, authorized testing, and managing simple runtime utilities in a controlled environment.
 
-This repository does not provide tools for bypassing permissions, escaping sandboxes, abusing shared hosting, mining cryptocurrency, or attacking infrastructure.
+Core goals:
+
+* Keep the terminal runtime small and readable
+* Route commands through a shared command center
+* Support logs, working directories, timeout control, and command guards
+* Provide Cloudflare DDNS support
+* Provide SSH/SFTP access through the Java runtime
+* Prepare the architecture for a future Web Panel
 
 ## Features
 
-* Interactive command input from a Java console
-* Cross-platform command execution using:
+### Terminal Runtime
 
-  * `cmd.exe /c` on Windows
-  * `bash -lc` on Linux/macOS
-* Current working directory tracking with `cd` and `pwd`
-* Automatic log creation in the `logs/` directory
-* ANSI-colored console messages
-* Basic command blocking for commands that are commonly unsafe or unsuitable for web panel consoles
-* Optional command timeout behavior
+* Interactive command input
+* Real-time command output
+* Working directory control with `cd` and `pwd`
+* Clear console support
+* Runtime command timeout
+* Automatic log files
+* Basic command guard for commands that may freeze or misuse panel consoles
 
-  * `0` means no timeout
-  * positive values limit command runtime in seconds
+### Cloudflare DDNS
 
-## Educational Use Cases
+Cloudflare DDNS support is completed.
 
-This project can be used to study:
+Mini Java Terminal can update a Cloudflare DNS A record to the current public IPv4 address of the panel host.
 
-* How Java communicates with system processes
-* How `ProcessBuilder` starts shell commands
-* How server panels pass input into a running Java application
-* How command output can be captured and logged
-* How working directory state can be managed inside a long-running Java process
-* Why sandboxing, process limits, and permission boundaries matter in hosting environments
+Supported commands:
 
-## What This Project Is Not
+```text
+cloudflare-set token <token>
+cloudflare-set zone <zone_id>
+cloudflare-set name <domain>
+cloudflare-set proxied false
+cloudflare-set ttl 120
+cloudflare-set interval 300
+cloudflare-show
+cloudflare-ddns-once
+cloudflare-ddns-start
+cloudflare-ddns-stop
+cloudflare-ddns-status
+```
 
-This project is not:
+The DNS record ID can be detected automatically when possible.
 
-* A hacking tool
-* A privilege escalation tool
-* A sandbox escape
-* A cryptocurrency miner
-* A botnet component
-* A malware loader
-* A bypass tool for hosting restrictions
-* A replacement for a real VPS or container platform
+### SSH / SFTP Runtime Service
 
-Do not use this project to violate the rules of any hosting provider, school system, company infrastructure, or third-party server.
+Mini Java Terminal includes an embedded SSH/SFTP service using Apache MINA SSHD.
 
-## Responsible Use Notice
+SSH and SFTP share the same configured port.
 
-Only run this project in environments where you have explicit permission.
+Supported commands:
 
-You are responsible for how you use this code. Running arbitrary system commands can be dangerous. A command bridge can read, modify, or delete files depending on the permissions of the user account running the Java process.
+```text
+ssh-set host 0.0.0.0
+ssh-set port <port>
+ssh-set user <username>
+ssh-set pass <password>
+ssh-set root <folder>
+ssh-show
+ssh-start
+ssh-stop
+ssh-status
+```
 
-Recommended environments:
+SFTP compatibility aliases are also supported:
 
-* Local development machine
-* Personal VPS
-* Private lab server
-* Authorized testing environment
-* Hosting sandbox where testing has been approved
+```text
+sftp-set
+sftp-show
+sftp-start
+sftp-stop
+sftp-status
+```
 
-Not recommended:
+Connect using SSH:
 
-* Public shared hosting without permission
-* School or company systems without approval
-* Third-party servers
-* Production environments
+```bash
+ssh <username>@<domain-or-ip> -p <port>
+```
 
-## Safety Notes
+Connect using SFTP:
 
-The application contains basic command blocking for commands such as:
+```bash
+sftp -P <port> <username>@<domain-or-ip>
+```
 
-* `su`
-* `sudo`
-* `apt install`
-* `apt-get install`
-* `nano`
-* `vim`
-* `vi`
-* `top`
-* `htop`
+## Project Structure
 
-These blocks are basic guardrails only. They are not a security sandbox. Real security should be enforced by the operating system, container runtime, hosting panel, and resource control policies.
+```text
+mini-java-terminal/
+├── scr/
+│   └── terminal/
+│       ├── Main.java
+│       │
+│       ├── command/
+│       │   ├── CommandCenter.java
+│       │   └── CommandContext.java
+│       │
+│       ├── services/
+│       │   ├── CloudflareDnsService.java
+│       │   └── SshServerService.java
+│       │
+│       └── system/
+│           ├── ShellRunner.java
+│           ├── PublicIpService.java
+│           ├── LogService.java
+│           ├── StateStore.java
+│           ├── CommandGuard.java
+│           └── RuntimeConfig.java
+│
+├── scripts/
+│   └── auto-build.ps1
+│
+├── dist/
+├── logs/
+├── target/
+├── pom.xml
+├── README.md
+└── .gitignore
+```
+
+## Folder Roles
+
+```text
+Main.java
+→ Application startup and console input loop.
+
+command/
+→ Routes user input to the correct internal command or service.
+
+services/
+→ Feature-level services such as Cloudflare DDNS and SSH/SFTP.
+
+system/
+→ Core runtime utilities such as shell execution, logging, state storage, public IP checking, command blocking, and runtime configuration.
+
+scripts/
+→ Development helper scripts.
+
+dist/
+→ Optional output folder for copied release JAR files.
+
+target/
+→ Maven build output. This folder should not be committed.
+
+logs/
+→ Runtime logs. This folder should not be committed.
+```
 
 ## Requirements
 
-* Java 11 or newer
-* A terminal or server console that supports standard input and output
+* Java 17 or newer
+* Maven
+* A terminal or server panel that supports standard input/output
+* Public ports if SSH/SFTP access is needed
 
 ## Build
 
-Compile the Java file:
+Build with Maven:
 
 ```bash
-javac Test.java
+mvn clean package
 ```
 
-Create a JAR file:
+The correct runnable JAR is:
 
-```bash
-echo "Main-Class: Test" > manifest.txt
-jar cvfm server.jar manifest.txt Test.class
+```text
+target/server.jar
 ```
 
-Run:
+If using the auto-build script, the JAR is copied to:
+
+```text
+dist/server.jar
+```
+
+Use `server.jar`, not the small thin JAR such as:
+
+```text
+mini-java-terminal-1.0.0.jar
+```
+
+The `server.jar` file is the shaded JAR and includes required dependencies such as Apache MINA SSHD.
+
+## Run
 
 ```bash
-java -jar server.jar
+java -jar target/server.jar
+```
+
+Or:
+
+```bash
+java -jar dist/server.jar
 ```
 
 ## Basic Commands
-
-Inside the Java console:
 
 ```text
 help
 pwd
 cd <folder>
-ls
-java -version
+clear
+public-ip
+timeout
+timeout <seconds>
 shutdown-terminal
 ```
 
-Example:
-
-```text
-cd logs
-pwd
-ls
-```
-
-## Timeout Configuration
-
-The command timeout is controlled by:
-
-```java
-private static int COMMAND_TIMEOUT_SECONDS = 0;
-```
-
-Behavior:
+Timeout behavior:
 
 ```text
 0  = no timeout
@@ -152,68 +232,39 @@ Behavior:
 300 = stop command after 5 minutes
 ```
 
-Use a positive timeout for safer testing. Use `0` only in a controlled environment where long-running commands are expected.
+## Runtime Files
 
-## Logs
-
-Logs are automatically created in:
+The app may generate:
 
 ```text
 logs/
+terminal-state.properties
+ssh-hostkey.ser
 ```
 
-Each session creates a log file with a timestamped filename.
+## Security Notice
 
-The log may contain command input and command output. Do not use this project to process secrets, passwords, private tokens, API keys, or sensitive data.
+Mini Java Terminal can execute system commands with the permissions of the user running the Java process.
 
-## Security Considerations
+Use it only in environments where you have explicit permission.
 
-This project demonstrates why unrestricted command execution should be treated carefully.
+This project is not:
 
-If you are a hosting provider, server-panel developer, or sandbox designer, consider enforcing:
+* A hacking tool
+* A privilege escalation tool
+* A sandbox escape
+* A malware loader
+* A cryptocurrency miner
+* A bypass tool for hosting restrictions
 
-* Per-process CPU limits
-* RAM limits
-* Disk quota limits
-* Process count limits
-* Network access policies
-* Child process tracking
-* Automatic cleanup when the main server process stops
-* Separation between game commands and host shell commands
-* Clear user-facing policy for allowed and disallowed runtime behavior
+The built-in command guard is only a basic safety layer. Real security must still come from the operating system, container runtime, hosting panel, user permissions, and resource limits.
 
-## Repository Scope
+## Safety Notice
 
-This repository only contains the Java source code and documentation.
+This project can execute system commands with the permissions of the user running the Java process. Use it only in environments where you have permission.
 
-It should not include:
-
-* Prebuilt third-party binaries
-* Operating system images
-* Firmware blobs
-* Disk images
-* Credentials
-* Private server files
-* Hosting provider files
-
-If additional third-party tools are used during personal experiments, users must obtain them from their official sources and comply with their respective licenses.
+It is not a hacking tool, sandbox escape, privilege escalation tool, malware loader, miner, or bypass tool.
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0.
-
-Add a `LICENSE` file containing the full GPL-3.0 license text.
-
-Suggested SPDX identifier for source files:
-
-```text
-SPDX-License-Identifier: GPL-3.0-or-later
-```
-
-## Disclaimer
-
-This project is provided for educational and research purposes only.
-
-The author is not responsible for misuse, damage, data loss, account suspension, service disruption, or policy violations caused by improper use of this project.
-
-Use responsibly, only with permission, and only in environments where you are authorized to test.
+GPL-3.0-or-later
