@@ -5,7 +5,7 @@
 ## Version
 
 ```text
-v2.2
+v2.2.24
 ```
 
 This version includes small refactors and runtime improvements before the Web Panel feature is added.
