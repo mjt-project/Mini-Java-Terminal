@@ -34,7 +34,7 @@
     </dependencies>
 
     <build>
-        <sourceDirectory>scr</sourceDirectory>
+        <sourceDirectory>src</sourceDirectory>
 
         <plugins>
             <plugin>
