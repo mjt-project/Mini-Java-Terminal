@@ -410,12 +410,14 @@ public class SshServerService {
                         }
                         continue;
                     }
-
+                    
+                    // SSH is closer to a real terminal session than the web panel.
+                    // Do not block sudo/nano/vim/top here.
+                    // Keep the web panel protection in the panel command handler instead.
                     if (commandGuard.isBlocked(line)) {
-                        writeError(err, "Command blocked by Mini Java Terminal.");
-                        continue;
+                        logService.write("[SSH GUARD BYPASSED] " + line + "\n");
                     }
-
+                    
                     runSystemCommand(line, out, err);
                 }
 
