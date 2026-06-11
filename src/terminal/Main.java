@@ -1,8 +1,15 @@
 package terminal;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
+
 import terminal.command.CommandCenter;
 import terminal.command.CommandContext;
 import terminal.services.CloudflareDnsService;
+import terminal.services.GatewayService;
 import terminal.services.SshServerService;
 import terminal.system.CommandGuard;
 import terminal.system.LogService;
@@ -10,12 +17,6 @@ import terminal.system.PublicIpService;
 import terminal.system.RuntimeConfig;
 import terminal.system.ShellRunner;
 import terminal.system.StateStore;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
 
 public class Main {
     private static final String RESET = "\u001B[0m";
@@ -39,6 +40,8 @@ public class Main {
             SshServerService sshServerService =
                     new SshServerService(stateStore, logService, commandGuard);
 
+            GatewayService gatewayService = new GatewayService(logService, stateStore);
+
             CommandContext commandContext = new CommandContext(
                     logService,
                     stateStore,
@@ -47,13 +50,15 @@ public class Main {
                     publicIpService,
                     commandGuard,
                     cloudflareDnsService,
-                    sshServerService
+                    sshServerService,
+                    gatewayService
             );
 
             CommandCenter commandCenter = new CommandCenter(commandContext);
             sshServerService.setCommandCenter(commandCenter);
 
             printStartupMessage(logService, runtimeConfig);
+            gatewayService.start();
 
             BufferedReader console = new BufferedReader(
                     new InputStreamReader(System.in, StandardCharsets.UTF_8)

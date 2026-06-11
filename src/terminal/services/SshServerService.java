@@ -139,8 +139,8 @@ public class SshServerService {
             // SFTP root folder
             sshServer.setFileSystemFactory(new VirtualFileSystemFactory(root));
 
-            // SSH interactive shell đơn giản
-            sshServer.setShellFactory(channel -> new SimpleSshShell(root));
+            // SSH real terminal shell with PTY helper fallback
+            sshServer.setShellFactory(channel -> new RealTerminalShell(root));
 
             sshServer.start();
             running = true;
@@ -410,12 +410,14 @@ public class SshServerService {
                         }
                         continue;
                     }
-
+                    
+                    // SSH is closer to a real terminal session than the web panel.
+                    // Do not block sudo/nano/vim/top here.
+                    // Keep the web panel protection in the panel command handler instead.
                     if (commandGuard.isBlocked(line)) {
-                        writeError(err, "Command blocked by Mini Java Terminal.");
-                        continue;
+                        logService.write("[SSH GUARD BYPASSED] " + line + "\n");
                     }
-
+                    
                     runSystemCommand(line, out, err);
                 }
 
@@ -681,4 +683,347 @@ public class SshServerService {
         }
 
     }
+
+    private class RealTerminalShell implements Command {
+    private final Path root;
+
+    private InputStream inputStream;
+    private OutputStream outputStream;
+    private OutputStream errorStream;
+    private ExitCallback exitCallback;
+
+    private Process process;
+    private Thread worker;
+
+    RealTerminalShell(Path root) {
+        this.root = root.toAbsolutePath().normalize();
+    }
+
+    @Override
+    public void setInputStream(InputStream inputStream) {
+        this.inputStream = inputStream;
+    }
+
+    @Override
+    public void setOutputStream(OutputStream outputStream) {
+        this.outputStream = outputStream;
+    }
+
+    @Override
+    public void setErrorStream(OutputStream errorStream) {
+        this.errorStream = errorStream;
+    }
+
+    @Override
+    public void setExitCallback(ExitCallback exitCallback) {
+        this.exitCallback = exitCallback;
+    }
+
+    @Override
+    public void start(ChannelSession channel, Environment environment) {
+        worker = new Thread(this::runRealTerminal, "mini-java-terminal-real-ssh-shell");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    @Override
+    public void destroy(ChannelSession channel) {
+        closeQuietly(inputStream);
+        closeQuietly(outputStream);
+        closeQuietly(errorStream);
+
+        try {
+            if (process != null && process.isAlive()) {
+                process.destroy();
+
+                if (process.isAlive()) {
+                    process.destroyForcibly();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        if (worker != null) {
+            worker.interrupt();
+        }
+    }
+
+    private void runRealTerminal() {
+        try {
+            Files.createDirectories(root);
+
+            writeRaw("Mini Java Terminal - Real SSH Terminal\r\n");
+            writeRaw("Type 'exit' to close this SSH session.\r\n");
+
+            PtyMethod method = detectPtyMethod();
+
+            writeRaw("PTY mode: " + method.name + "\r\n");
+
+            if (method.type == PtyType.BASIC_SHELL) {
+                writeRaw("\r\n[WARN] No PTY helper found.\r\n");
+                writeRaw("[WARN] Falling back to basic shell mode.\r\n");
+                writeRaw("[WARN] su/nano/vim/top may not work correctly without PTY.\r\n");
+            }
+
+            writeRaw("\r\n");
+
+            ProcessBuilder processBuilder = method.builder;
+            processBuilder.directory(root.toFile());
+            processBuilder.redirectErrorStream(true);
+
+            processBuilder.environment().put("TERM", "xterm-256color");
+            processBuilder.environment().put("HOME", root.toString());
+            processBuilder.environment().put("PWD", root.toString());
+            processBuilder.environment().put("MJT_SSH_ROOT", root.toString());
+            processBuilder.environment().put("COLUMNS", "120");
+            processBuilder.environment().put("LINES", "32");
+
+            process = processBuilder.start();
+
+            Thread inputPump = new Thread(
+                    () -> pump(inputStream, process.getOutputStream()),
+                    "mjt-real-ssh-input-pump"
+            );
+
+            Thread outputPump = new Thread(
+                    () -> pump(process.getInputStream(), outputStream),
+                    "mjt-real-ssh-output-pump"
+            );
+
+            inputPump.setDaemon(true);
+            outputPump.setDaemon(true);
+
+            inputPump.start();
+            outputPump.start();
+
+            int exitCode = process.waitFor();
+
+            try {
+                outputPump.join(1000);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+
+            logService.write("[SSH REAL TERMINAL EXIT] " + exitCode + "\n");
+
+            if (exitCallback != null) {
+                exitCallback.onExit(exitCode);
+            }
+
+        } catch (Exception e) {
+            try {
+                logService.write("[SSH REAL TERMINAL ERROR] " + e.getMessage() + "\n");
+            } catch (IOException ignored) {
+            }
+
+            try {
+                writeRaw("\r\nSSH terminal error: " + e.getMessage() + "\r\n");
+            } catch (IOException ignored) {
+            }
+
+            if (exitCallback != null) {
+                exitCallback.onExit(1, e.getMessage());
+            }
+        }
+    }
+
+    private PtyMethod detectPtyMethod() {
+        String osName = System.getProperty("os.name").toLowerCase();
+
+        if (osName.contains("win")) {
+            return new PtyMethod(
+                    PtyType.BASIC_SHELL,
+                    "windows-cmd",
+                    new ProcessBuilder("cmd.exe")
+            );
+        }
+
+        String shell = chooseShell();
+
+        Path script = firstExecutable(
+                "/usr/bin/script",
+                "/bin/script"
+        );
+
+        if (script != null) {
+            return new PtyMethod(
+                    PtyType.SCRIPT,
+                    "script",
+                    new ProcessBuilder(
+                            script.toString(),
+                            "-qfc",
+                            "exec " + shell + " -i",
+                            "/dev/null"
+                    )
+            );
+        }
+
+        Path busybox = firstExecutable(
+                "/usr/bin/busybox",
+                "/bin/busybox",
+                "/sbin/busybox"
+        );
+
+        if (busybox != null && busyboxScriptSupportsCommand(busybox)) {
+            return new PtyMethod(
+                    PtyType.BUSYBOX_SCRIPT,
+                    "busybox-script",
+                    new ProcessBuilder(
+                            busybox.toString(),
+                            "script",
+                            "-q",
+                            "-c",
+                            "exec " + shell + " -i",
+                            "/dev/null"
+                    )
+            );
+        }
+
+        Path socat = firstExecutable(
+                "/usr/bin/socat",
+                "/bin/socat",
+                "/usr/local/bin/socat"
+        );
+
+        if (socat != null) {
+            return new PtyMethod(
+                    PtyType.SOCAT,
+                    "socat",
+                    new ProcessBuilder(
+                            socat.toString(),
+                            "-",
+                            "EXEC:" + shell + " -i,pty,stderr,setsid,sigint,sane"
+                    )
+            );
+        }
+
+        return new PtyMethod(
+                PtyType.BASIC_SHELL,
+                "basic-shell",
+                new ProcessBuilder(shell, "-i")
+        );
+    }
+
+    private String chooseShell() {
+        if (Files.isExecutable(Paths.get("/bin/bash"))) {
+            return "/bin/bash";
+        }
+
+        if (Files.isExecutable(Paths.get("/usr/bin/bash"))) {
+            return "/usr/bin/bash";
+        }
+
+        if (Files.isExecutable(Paths.get("/bin/ash"))) {
+            return "/bin/ash";
+        }
+
+        return "/bin/sh";
+    }
+
+    private Path firstExecutable(String... paths) {
+        for (String item : paths) {
+            Path path = Paths.get(item);
+
+            if (Files.isExecutable(path)) {
+                return path;
+            }
+        }
+
+        return null;
+    }
+
+    private boolean busyboxScriptSupportsCommand(Path busybox) {
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder(
+                    busybox.toString(),
+                    "script",
+                    "--help"
+            );
+
+            processBuilder.redirectErrorStream(true);
+
+            Process testProcess = processBuilder.start();
+
+            StringBuilder helpText = new StringBuilder();
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(testProcess.getInputStream(), StandardCharsets.UTF_8)
+            )) {
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    helpText.append(line).append('\n');
+                }
+            }
+
+            testProcess.waitFor();
+
+            String lowerHelp = helpText.toString().toLowerCase();
+
+            return lowerHelp.contains("-c")
+                    || lowerHelp.contains("command")
+                    || lowerHelp.contains("script");
+
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void pump(InputStream source, OutputStream target) {
+        byte[] buffer = new byte[8192];
+
+        try {
+            int length;
+
+            while ((length = source.read(buffer)) != -1) {
+                target.write(buffer, 0, length);
+                target.flush();
+            }
+
+        } catch (IOException ignored) {
+        }
+    }
+
+    private void writeRaw(String text) throws IOException {
+        outputStream.write(text.getBytes(StandardCharsets.UTF_8));
+        outputStream.flush();
+    }
+
+    private void closeQuietly(InputStream stream) {
+        try {
+            if (stream != null) {
+                stream.close();
+            }
+        } catch (IOException ignored) {
+        }
+    }
+
+    private void closeQuietly(OutputStream stream) {
+        try {
+            if (stream != null) {
+                stream.close();
+            }
+        } catch (IOException ignored) {
+        }
+    }
+
+    private enum PtyType {
+        SCRIPT,
+        BUSYBOX_SCRIPT,
+        SOCAT,
+        BASIC_SHELL
+    }
+
+    private class PtyMethod {
+        private final PtyType type;
+        private final String name;
+        private final ProcessBuilder builder;
+
+        private PtyMethod(PtyType type, String name, ProcessBuilder builder) {
+            this.type = type;
+            this.name = name;
+            this.builder = builder;
+        }
+    }
+}
 }
