@@ -525,36 +525,47 @@ public class CommandCenter {
         context.logService().write("[GATEWAY SHOW]\n");
     }
 
-    private void printGatewayHelp() {
-        System.out.println(YELLOW + "Gateway Commands:" + RESET);
-        System.out.println("gateway-help                                  - Xem hướng dẫn Gateway");
-        System.out.println("gateway-show                                  - Xem cấu hình Gateway");
-        System.out.println("gateway-set <key> <value>                    - Set config thủ công");
-        System.out.println("gateway-default <route|close>                - Chọn TCP route mặc định");
-        System.out.println();
 
-        System.out.println(YELLOW + "TCP route management:" + RESET);
-        System.out.println("gateway-route-add <name> <host> <port>       - Thêm/sửa route TCP");
-        System.out.println("gateway-route-remove <name>                  - Xóa route TCP");
-        System.out.println("gateway-route-enable <name>                  - Bật route TCP");
-        System.out.println("gateway-route-disable <name>                 - Tắt route TCP");
-        System.out.println();
+private void printGatewayHelp() {
+    printTitle("Gateway Commands");
 
-        System.out.println(YELLOW + "Ví dụ:" + RESET);
-        System.out.println("gateway-route-add mc 127.0.0.1 25565");
-        System.out.println("gateway-default mc");
-        System.out.println("gateway-route-add velocity 127.0.0.1 25577");
-        System.out.println("gateway-default velocity");
-        System.out.println("gateway-default close");
-        System.out.println();
+    printSection("1. Gateway Core");
+    printCommand("gateway-help", "Xem hướng dẫn Gateway");
+    printCommand("gateway-show", "Xem toàn bộ cấu hình Gateway");
+    printCommand("gateway-set <key> <value>", "Set config Gateway thủ công");
+    printCommand("gateway-default <route|close>", "Chọn TCP route mặc định hoặc đóng TCP fallback");
 
-        System.out.println(YELLOW + "Config keys thường dùng:" + RESET);
-        System.out.println("gateway.http.enabled true");
-        System.out.println("gateway.ssh.enabled true");
-        System.out.println("gateway.ssh.host 127.0.0.1");
-        System.out.println("gateway.ssh.port 2022");
-        System.out.println("gateway.tcp.enabled true");
-    }
+    printSection("2. HTTP Static File Service");
+    printCommand("gateway-set gateway.http.enabled true", "Bật HTTP service");
+    printCommand("gateway-set gateway.http.enabled false", "Tắt HTTP service");
+    printCommand("gateway-set gateway.http.root /home/container/www", "Đặt thư mục chứa HTML/CSS/JS");
+    printCommand("gateway-set gateway.http.index index.html", "Đặt file index mặc định");
+    printCommand("gateway-set gateway.http.spa true", "Bật SPA fallback về index.html");
+    printCommand("gateway-set gateway.http.spa false", "Tắt SPA fallback");
+
+    printSection("3. SSH / SFTP Gateway Proxy");
+    printCommand("gateway-set gateway.ssh.enabled true", "Bật SSH/SFTP route qua Gateway");
+    printCommand("gateway-set gateway.ssh.enabled false", "Tắt SSH/SFTP route qua Gateway");
+    printCommand("gateway-set gateway.ssh.host 127.0.0.1", "Đặt host SSH/SFTP nội bộ");
+    printCommand("gateway-set gateway.ssh.port 2022", "Đặt port SSH/SFTP nội bộ");
+
+    printSection("4. Manual TCP Routes");
+    printCommand("gateway-route-add <name> <host> <port>", "Thêm hoặc sửa TCP route");
+    printCommand("gateway-route-remove <name>", "Xóa TCP route");
+    printCommand("gateway-route-enable <name>", "Bật TCP route");
+    printCommand("gateway-route-disable <name>", "Tắt TCP route");
+    printCommand("gateway-default <name>", "Chọn route làm TCP fallback mặc định");
+    printCommand("gateway-default close", "Đóng TCP fallback nếu không phải HTTP/SSH");
+
+    printSection(" ---   Examples   ---");
+    printCommand("gateway-route-add mc 127.0.0.1 25565", "Thêm route Minecraft Java");
+    printCommand("gateway-default mc", "Cho TCP fallback đi vào route mc");
+    printCommand("gateway-route-add velocity 127.0.0.1 25577", "Thêm route Velocity");
+    printCommand("gateway-default velocity", "Cho TCP fallback đi vào Velocity");
+    printCommand("gateway-default close", "Tắt TCP fallback");
+
+    System.out.println();
+}
 
     private List<String> getGatewayRouteNames() {
         String raw = context.stateStore().get("gateway.tcp.routes", "").trim();
@@ -586,70 +597,85 @@ public class CommandCenter {
         return name != null && name.matches("[A-Za-z0-9_-]+");
     }
 
+    private void printTitle(String title) {
+        System.out.println();
+        System.out.println(GREEN + "==================================================" + RESET);
+        System.out.println(GREEN + title + RESET);
+        System.out.println(GREEN + "==================================================" + RESET);
+    }
+    
+    private void printSection(String title) {
+        System.out.println();
+        System.out.println(YELLOW + "== " + title + " ==" + RESET);
+    }
+    
+    private void printCommand(String command, String description) {
+        System.out.printf("  " + CYAN + "%-48s" + RESET + " %s%n", command, description);
+    }
+
     private void printHelp() throws IOException {
-        System.out.println(YELLOW + "Mini Java Terminal Commands:" + RESET);
-        System.out.println("help                         - Xem hướng dẫn");
-        System.out.println("pwd                          - Xem thư mục hiện tại");
-        System.out.println("cd <folder>                  - Chuyển thư mục");
-        System.out.println("clear                        - Xóa màn hình console");
-        System.out.println("public-ip                    - Check public IPv4 của panel host");
-        System.out.println("timeout                      - Xem timeout hiện tại");
-        System.out.println("timeout <seconds>            - Đặt timeout, 0 = không giới hạn");
-        System.out.println();
+        printTitle("Mini Java Terminal Commands");
 
-        System.out.println(YELLOW + "Cloudflare DDNS:" + RESET);
-        System.out.println("cloudflare-set token <token> - Lưu Cloudflare API token");
-        System.out.println("cloudflare-set zone <id>     - Lưu Cloudflare Zone ID");
-        System.out.println("cloudflare-set name <domain> - Lưu DNS record name");
-        System.out.println("cloudflare-set proxied false - Đặt DNS only");
-        System.out.println("cloudflare-set ttl 120       - Đặt TTL");
-        System.out.println("cloudflare-set interval 300  - Đặt thời gian check IP");
-        System.out.println("cloudflare-show              - Xem config Cloudflare");
-        System.out.println("cloudflare-ddns-once         - Cập nhật DNS một lần");
-        System.out.println("cloudflare-ddns-start        - Bật auto DDNS");
-        System.out.println("cloudflare-ddns-stop         - Dừng auto DDNS");
-        System.out.println("cloudflare-ddns-status       - Xem trạng thái DDNS");
-        System.out.println();
+        printSection("1. Terminal Runtime");
+        printCommand("help", "Xem hướng dẫn tổng quan");
+        printCommand("pwd", "Xem thư mục hiện tại");
+        printCommand("cd <folder>", "Chuyển thư mục");
+        printCommand("clear / cls", "Xóa màn hình console");
+        printCommand("public-ip", "Kiểm tra public IPv4 của panel host");
+        printCommand("timeout", "Xem timeout hiện tại");
+        printCommand("timeout <seconds>", "Đặt timeout, 0 = không giới hạn");
 
-        System.out.println(YELLOW + "SSH / SFTP Server:" + RESET);
-        System.out.println("ssh-set host 0.0.0.0         - Bind host");
-        System.out.println("ssh-set port <port>          - Port SSH/SFTP public");
-        System.out.println("ssh-set user <username>      - Username SSH/SFTP");
-        System.out.println("ssh-set pass <password>      - Password SSH/SFTP");
-        System.out.println("ssh-set root <folder>        - Thư mục gốc SSH/SFTP");
-        System.out.println("ssh-show                     - Xem config SSH/SFTP");
-        System.out.println("ssh-start                    - Bật SSH/SFTP server");
-        System.out.println("ssh-stop                     - Tắt SSH/SFTP server");
-        System.out.println("ssh-status                   - Xem trạng thái SSH/SFTP");
-        System.out.println();
+        printSection("2. Cloudflare DDNS");
+        printCommand("cloudflare-show", "Xem config Cloudflare");
+        printCommand("cloudflare-set token <token>", "Lưu Cloudflare API token");
+        printCommand("cloudflare-set zone <zone_id>", "Lưu Cloudflare Zone ID");
+        printCommand("cloudflare-set name <domain>", "Lưu DNS record name");
+        printCommand("cloudflare-set proxied false", "Đặt DNS only");
+        printCommand("cloudflare-set ttl 120", "Đặt TTL");
+        printCommand("cloudflare-set interval 300", "Đặt thời gian check IP");
+        printCommand("cloudflare-ddns-once", "Cập nhật DNS một lần");
+        printCommand("cloudflare-ddns-start", "Bật auto DDNS");
+        printCommand("cloudflare-ddns-stop", "Dừng auto DDNS");
+        printCommand("cloudflare-ddns-status", "Xem trạng thái DDNS");
 
-        System.out.println(YELLOW + "Compatibility aliases:" + RESET);
-        System.out.println("sftp-set / sftp-show / sftp-start / sftp-stop / sftp-status");
-        System.out.println();
-        
-        System.out.println(YELLOW + "Gateway:" + RESET);
-        System.out.println("gateway-help                                  - Xem hướng dẫn Gateway");
-        System.out.println("gateway-show                                  - Xem cấu hình Gateway");
-        System.out.println("gateway-set <key> <value>                    - Set config Gateway thủ công");
-        System.out.println("gateway-route-add <name> <host> <port>       - Thêm/sửa route TCP");
-        System.out.println("gateway-route-remove <name>                  - Xóa route TCP");
-        System.out.println("gateway-route-enable <name>                  - Bật route TCP");
-        System.out.println("gateway-route-disable <name>                 - Tắt route TCP");
-        System.out.println("gateway-default <route|close>                - Chọn TCP route mặc định");
-        System.out.println();
+        printSection("3. SSH / SFTP Server");
+        printCommand("ssh-show", "Xem config SSH/SFTP");
+        printCommand("ssh-set host <host>", "Bind host, ví dụ 127.0.0.1 hoặc 0.0.0.0");
+        printCommand("ssh-set port <port>", "Đặt port SSH/SFTP");
+        printCommand("ssh-set user <username>", "Đặt username SSH/SFTP");
+        printCommand("ssh-set pass <password>", "Đặt password SSH/SFTP");
+        printCommand("ssh-set root <folder>", "Đặt thư mục gốc SSH/SFTP");
+        printCommand("ssh-start", "Bật SSH/SFTP server");
+        printCommand("ssh-stop", "Tắt SSH/SFTP server");
+        printCommand("ssh-status", "Xem trạng thái SSH/SFTP");
 
-        System.out.println(YELLOW + "HTTP static file service:" + RESET);
-    System.out.println("gateway-set gateway.http.root /home/container/www       - Đặt thư mục chứa HTML/CSS/JS");
-    System.out.println("gateway-set gateway.http.index index.html               - Đặt file index");
-    System.out.println("gateway-set gateway.http.spa true                       - Bật SPA fallback về index.html");
-    System.out.println("gateway-set gateway.http.spa false                      - Tắt SPA fallback");
-    System.out.println();
+        printSection("4. SFTP Compatibility Aliases");
+        printCommand("sftp-show", "Alias của ssh-show");
+        printCommand("sftp-set <key> <value>", "Alias của ssh-set");
+        printCommand("sftp-start", "Alias của ssh-start");
+        printCommand("sftp-stop", "Alias của ssh-stop");
+        printCommand("sftp-status", "Alias của ssh-status");
 
-        System.out.println("shutdown-terminal            - Tắt app");
+        printSection("5. Gateway");
+        printCommand("gateway-help", "Xem hướng dẫn Gateway đầy đủ");
+        printCommand("gateway-show", "Xem cấu hình Gateway");
+        printCommand("gateway-set <key> <value>", "Set config Gateway thủ công");
+        printCommand("gateway-default <route|close>", "Chọn TCP route mặc định");
+        printCommand("gateway-route-add <name> <host> <port>", "Thêm/sửa route TCP");
+        printCommand("gateway-route-remove <name>", "Xóa route TCP");
+        printCommand("gateway-route-enable <name>", "Bật route TCP");
+        printCommand("gateway-route-disable <name>", "Tắt route TCP");
+
+        printSection("6. Safety");
+        printCommand("shutdown-terminal", "Tắt Mini Java Terminal");
+        printCommand("exit", "Bị chặn để tránh làm server offline");
+
+        printSection("Commands not recommended");
+        System.out.println("  " + RED + "su, sudo, nano, vim, vi, top, htop" + RESET);
+
         System.out.println();
-
-        System.out.println(RED + "Không hỗ trợ tốt:" + RESET);
-        System.out.println("su, sudo, nano, vim, vi, top, htop");
+        System.out.println(YELLOW + "Tip:" + RESET + " Gõ " + CYAN + "gateway-help" + RESET + " để xem riêng phần Gateway.");
+        System.out.println();
 
         context.logService().write("[HELP]\n");
     }

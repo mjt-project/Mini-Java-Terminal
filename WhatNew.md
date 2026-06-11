@@ -2,95 +2,132 @@
 
 ### New
 
-* Added Gateway Service for routing multiple protocols through a single public TCP port.
-* Added built-in HTTP service directly inside `server.jar`, allowing a web page to run without opening an additional HTTP port.
-* Added SSH/SFTP gateway proxy support, allowing external SSH/SFTP connections through the public port while forwarding internally to a local SSH service.
-* Added manual TCP route configuration through `terminal-state.properties`.
-* Added support for dynamic TCP route management, including adding, removing, enabling, disabling, and selecting a default TCP route.
-* Added Gateway command support:
+* Released version `2.3.26`.
+* Added experimental Gateway Service for single-port TCP routing.
+* Added Gateway startup information showing:
+
+  * Public TCP
+  * HTTP status
+  * SSH/SFTP target
+  * TCP status
+  * TCP default route
+  * TCP route list
+* Added Gateway command group to the main `help` output.
+* Added dedicated `gateway-help` command.
+* Added Gateway core commands:
 
   * `gateway-help`
   * `gateway-show`
   * `gateway-set <key> <value>`
+  * `gateway-default <route|close>`
+* Added manual TCP route commands:
+
   * `gateway-route-add <name> <host> <port>`
   * `gateway-route-remove <name>`
   * `gateway-route-enable <name>`
   * `gateway-route-disable <name>`
-  * `gateway-default <route|close>`
-* Added support for reading the public gateway port from the hosting environment variable `SERVER_PORT`.
-* Added dynamic Gateway configuration reload for new incoming connections.
-* Added a cleaner routing structure where HTTP, SSH/SFTP, and manual TCP routes are handled separately.
-* Added experimental support for routing Minecraft Java traffic to a local backend service through the Gateway.
+* Added Gateway HTTP config commands:
 
-### Fixed
+  * `gateway-set gateway.http.enabled true`
+  * `gateway-set gateway.http.enabled false`
+  * `gateway-set gateway.http.root /home/container/www`
+  * `gateway-set gateway.http.index index.html`
+  * `gateway-set gateway.http.spa true`
+  * `gateway-set gateway.http.spa false`
+* Added Gateway SSH/SFTP proxy config commands:
 
-* Fixed SSH/SFTP connections closing immediately after successful password authentication.
-* Fixed TCP proxy timeout behavior by resetting socket timeout after protocol detection.
-* Fixed SSH/SFTP conflict with the public port by allowing SSH/SFTP to run internally on a local port such as `127.0.0.1:2022`.
-* Fixed the issue where Gateway protocol detection could consume the first bytes of a connection without forwarding them to the backend.
-* Fixed unstable SSH proxy behavior when the SSH client waits for the server banner first.
-* Improved handling of unknown protocols through the Gateway.
-* Improved Gateway logging for HTTP, SSH/SFTP, TCP proxy, unknown protocols, and backend connection errors.
-* Improved compatibility with hosting environments that provide only one public port.
-* Improved project structure for future support of additional internal services.
+  * `gateway-set gateway.ssh.enabled true`
+  * `gateway-set gateway.ssh.enabled false`
+  * `gateway-set gateway.ssh.host 127.0.0.1`
+  * `gateway-set gateway.ssh.port 2022`
+* Added clearer SFTP compatibility alias section in `help`.
 
 ### Changed
 
-* Gateway now owns the public TCP port instead of the SSH service.
-* SSH/SFTP is now expected to run as an internal service and be accessed through the Gateway.
-* HTTP no longer requires a separate web server or additional port.
-* Manual TCP routes are now controlled through Gateway configuration instead of hardcoded Java variables.
-* Default TCP route can be changed without rebuilding the project.
-* The project is moving toward a single-port multi-service runtime architecture.
+* Improved the main `help` display.
+* Reorganized `help` output into clearer sections:
 
-### Gateway Configuration Example
+  * Terminal Runtime
+  * Cloudflare DDNS
+  * SSH / SFTP Server
+  * SFTP Compatibility Aliases
+  * Gateway
+  * Safety
+  * Commands not recommended
+* Moved detailed Gateway usage into `gateway-help`.
+* Improved Gateway command examples for Minecraft Java and Velocity-style local TCP routes.
+* Improved command readability by aligning command names and descriptions.
+* Kept `shutdown-terminal` as the current official stop command for this release.
+* Kept `terminal-state.properties` as the current runtime config file for this release.
 
-```properties
-gateway.http.enabled=true
+### Fixed
 
-gateway.ssh.enabled=true
-gateway.ssh.host=127.0.0.1
-gateway.ssh.port=2022
+* Fixed confusing `help` command output by separating command groups.
+* Fixed Gateway command documentation being mixed into the main help too densely.
+* Fixed Gateway help readability by separating:
 
-gateway.tcp.enabled=true
-gateway.tcp.default=mc
-gateway.tcp.routes=mc
+  * Gateway Core
+  * HTTP Static File Service
+  * SSH / SFTP Gateway Proxy
+  * Manual TCP Routes
+  * Examples
+* Fixed unclear TCP fallback usage by documenting `gateway-default close`.
+* Fixed unclear route examples by adding direct examples for:
 
-gateway.tcp.mc.enabled=true
-gateway.tcp.mc.host=127.0.0.1
-gateway.tcp.mc.port=25565
+  * `mc`
+  * `velocity`
+
+### Not Included In This Release
+
+* The `mjt-config/` config folder refactor is not included.
+* The `mjt-exit` command rename is not included.
+* The new startup layout redesign is not included.
+* UDP routing is not included.
+* Full production-ready multi-service routing is not included.
+* This version still uses `terminal-state.properties`.
+
+### Gateway Commands
+
+```text
+gateway-help
+gateway-show
+gateway-set <key> <value>
+gateway-default <route|close>
+gateway-route-add <name> <host> <port>
+gateway-route-remove <name>
+gateway-route-enable <name>
+gateway-route-disable <name>
 ```
 
-### Gateway Command Example
+### Gateway Help Sections
 
-```bash
+```text
+Gateway Core
+HTTP Static File Service
+SSH / SFTP Gateway Proxy
+Manual TCP Routes
+Examples
+```
+
+### Manual TCP Route Example
+
+```text
 gateway-route-add mc 127.0.0.1 25565
 gateway-default mc
 gateway-show
 ```
 
-To disable the default TCP backend:
+To close TCP fallback:
 
-```bash
+```text
 gateway-default close
-```
-
-To remove a route:
-
-```bash
-gateway-route-remove mc
 ```
 
 ### Note
 
-* This is an experimental development build.
-* This version focuses on single-port Gateway routing for restricted hosting environments.
-* HTTP and SSH/SFTP have been tested through the same public port.
-* TCP backend routing is experimental and may require further testing depending on the target service.
-* Minecraft Java routing is still experimental and should be tested carefully.
-* UDP routing is not included in this version yet.
-* This build is intended for controlled testing environments and may not be stable for production use.
-
-### Dev by @SimonNg-code
-
-**Full Changelog**: https://github.com/SimonNg-code/Mini-Java-Terminal/commits/2.3.22
+* This is an experimental development release.
+* Gateway Service is intended for controlled and authorized testing environments.
+* Manual TCP backend routing is experimental and may require additional testing depending on the target service.
+* Minecraft Java routing is experimental.
+* This release focuses on Gateway commands and clearer help output.
+* This release does not include the larger config-folder refactor yet.
