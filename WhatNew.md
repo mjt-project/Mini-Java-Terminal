@@ -2,7 +2,7 @@
 
 ### New
 
-* Released version `2.3.26`.
+* Released version `2.3.27`.
 * Added experimental Gateway Service for single-port TCP routing.
 * Added Gateway startup information showing:
 
@@ -76,15 +76,7 @@
 
   * `mc`
   * `velocity`
-
-### Not Included In This Release
-
-* The `mjt-config/` config folder refactor is not included.
-* The `mjt-exit` command rename is not included.
-* The new startup layout redesign is not included.
-* UDP routing is not included.
-* Full production-ready multi-service routing is not included.
-* This version still uses `terminal-state.properties`.
+* Fix windwos ssh connect dose not show correctly.
 
 ### Gateway Commands
 
