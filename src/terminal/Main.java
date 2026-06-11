@@ -27,7 +27,7 @@ public class Main {
     public static void main(String[] args) {
         try {
             LogService logService = new LogService(Paths.get("logs"));
-            StateStore stateStore = new StateStore(Paths.get("terminal-state.properties"));
+            StateStore stateStore = new StateStore(Paths.get("mjt-config"));
             RuntimeConfig runtimeConfig = new RuntimeConfig();
 
             ShellRunner shellRunner = new ShellRunner(logService);
@@ -85,14 +85,25 @@ public class Main {
             LogService logService,
             RuntimeConfig runtimeConfig
     ) throws IOException {
-        System.out.println(GREEN + "Mini Java Terminal started." + RESET);
-        System.out.println(CYAN + "Java terminal panel is ready." + RESET);
-        System.out.println(YELLOW + "Gõ help để xem lệnh hỗ trợ." + RESET);
-        System.out.println("Current dir: " + runtimeConfig.getCurrentDir());
-        System.out.println("Log file   : " + logService.getLogFile().toAbsolutePath());
+        System.out.println();
+        System.out.println(GREEN + "==================================================" + RESET);
+        System.out.println(GREEN + " Mini Java Terminal v2.4.0" + RESET);
+        System.out.println(GREEN + "==================================================" + RESET);
+
+        System.out.println(CYAN + " Status      : READY" + RESET);
+        System.out.println(" Workdir     : " + runtimeConfig.getCurrentDir());
+        System.out.println(" Log file    : " + logService.getLogFile().toAbsolutePath());
+
+        System.out.println();
+        System.out.println(YELLOW + " Quick commands:" + RESET);
+        System.out.println("  help          - Show all commands");
+        System.out.println("  gateway-help  - Show Gateway commands");
+        System.out.println("  gateway-show  - Show Gateway config");
+        System.out.println("  ssh-show      - Show SSH/SFTP config");
+        System.out.println("  mjt-exit      - Stop Mini Java Terminal");
         System.out.println();
 
-        logService.write("[START] Mini Java Terminal\n");
+        logService.write("[START] Mini Java Terminal v2.3.22\n");
         logService.write("[CURRENT DIR] " + runtimeConfig.getCurrentDir() + "\n");
     }
 }

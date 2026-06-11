@@ -606,29 +606,55 @@ public class GatewayService {
     private void printGatewayStartup(int publicTcpPort) throws IOException {
         reloadStateConfigQuietly();
 
-        System.out.println(GREEN + "[Gateway] Started." + RESET);
-        System.out.println("Public TCP : 0.0.0.0:" + publicTcpPort);
-        System.out.println("HTTP       : " + getConfigBoolean("gateway.http.enabled", true));
-        System.out.println("SSH/SFTP   : "
-                + getConfigString("gateway.ssh.host", "127.0.0.1")
-                + ":"
-                + getConfigInt("gateway.ssh.port", 2022));
-        System.out.println("TCP        : " + getConfigBoolean("gateway.tcp.enabled", true));
-        System.out.println("TCP default: " + getConfigString("gateway.tcp.default", "close"));
+        boolean httpEnabled = getConfigBoolean("gateway.http.enabled", true);
+        boolean sshEnabled = getConfigBoolean("gateway.ssh.enabled", true);
+        boolean tcpEnabled = getConfigBoolean("gateway.tcp.enabled", true);
+
+        String httpRoot = getConfigString("gateway.http.root", "www");
+        String httpIndex = getConfigString("gateway.http.index", "index.html");
+        boolean httpSpa = getConfigBoolean("gateway.http.spa", false);
+
+        String sshHost = getConfigString("gateway.ssh.host", "127.0.0.1");
+        int sshPort = getConfigInt("gateway.ssh.port", 2022);
+
+        String tcpDefault = getConfigString("gateway.tcp.default", "close");
+
+        System.out.println(GREEN + "==================================================" + RESET);
+        System.out.println(GREEN + " Gateway Service" + RESET);
+        System.out.println(GREEN + "==================================================" + RESET);
+
+        System.out.println(CYAN + " Public TCP  : 0.0.0.0:" + publicTcpPort + RESET);
+
+        System.out.println();
+        System.out.println(YELLOW + " HTTP Static Files" + RESET);
+        System.out.println("  Status     : " + formatStatus(httpEnabled));
+        System.out.println("  Root       : " + httpRoot);
+        System.out.println("  Index      : " + httpIndex);
+        System.out.println("  SPA mode   : " + formatStatus(httpSpa));
+
+        System.out.println();
+        System.out.println(YELLOW + " SSH / SFTP Proxy" + RESET);
+        System.out.println("  Status     : " + formatStatus(sshEnabled));
+        System.out.println("  Target     : " + sshHost + ":" + sshPort);
+
+        System.out.println();
+        System.out.println(YELLOW + " Manual TCP Routes" + RESET);
+        System.out.println("  Status     : " + formatStatus(tcpEnabled));
+        System.out.println("  Default    : " + tcpDefault);
 
         List<TcpRoute> routes = readAllManualTcpRoutes();
 
         if (routes.isEmpty()) {
-            System.out.println("TCP routes : none");
+            System.out.println("  Routes     : none");
         } else {
-            System.out.println("TCP routes :");
+            System.out.println("  Routes     :");
 
             for (TcpRoute route : routes) {
-                System.out.println("  - "
+                System.out.println("    - "
                         + route.name
-                        + " enabled="
-                        + route.enabled
-                        + " target="
+                        + " | "
+                        + formatStatus(route.enabled)
+                        + " | "
                         + route.host
                         + ":"
                         + route.port);
@@ -713,5 +739,10 @@ public class GatewayService {
             this.host = host;
             this.port = port;
         }
+    }
+
+    
+    private String formatStatus(boolean enabled) {
+        return enabled ? "ON" : "OFF";
     }
 }

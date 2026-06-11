@@ -85,14 +85,14 @@ public class CommandCenter {
 
         if (command.equalsIgnoreCase("exit")) {
             System.out.println(YELLOW + "Lệnh exit đã bị chặn để tránh server offline." + RESET);
-            System.out.println(YELLOW + "Muốn tắt thật thì gõ: shutdown-terminal" + RESET);
+            System.out.println(YELLOW + "Muốn tắt Mini Java Terminal thì gõ: mjt-exit" + RESET);
             context.logService().write("[BLOCKED EXIT]\n");
             return true;
-        }
+        }       
 
-        if (command.equalsIgnoreCase("shutdown-terminal")) {
+        if (command.equalsIgnoreCase("mjt-exit")) {
             System.out.println(RED + "Đang tắt Mini Java Terminal..." + RESET);
-            context.logService().write("[SHUTDOWN]\n");
+            context.logService().write("[MJT EXIT]\n");
             System.exit(0);
             return true;
         }
@@ -525,7 +525,6 @@ public class CommandCenter {
         context.logService().write("[GATEWAY SHOW]\n");
     }
 
-
 private void printGatewayHelp() {
     printTitle("Gateway Commands");
 
@@ -667,7 +666,7 @@ private void printGatewayHelp() {
         printCommand("gateway-route-disable <name>", "Tắt route TCP");
 
         printSection("6. Safety");
-        printCommand("shutdown-terminal", "Tắt Mini Java Terminal");
+        printCommand("mjt-exit", "Tắt Mini Java Terminal");
         printCommand("exit", "Bị chặn để tránh làm server offline");
 
         printSection("Commands not recommended");
