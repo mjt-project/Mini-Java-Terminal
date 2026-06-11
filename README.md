@@ -1,6 +1,6 @@
 # Mini Java Terminal
 
-> A lightweight Java terminal panel for command execution, logging, Cloudflare DDNS, SSH/SFTP access, and runtime utilities.
+> A lightweight Java terminal panel for command execution, logging, Cloudflare DDNS, SSH/SFTP access, single-port Gateway routing, and runtime utilities.
 
 ## Version
 
@@ -21,6 +21,7 @@ Core goals:
 * Support logs, working directories, timeout control, and command guards
 * Provide Cloudflare DDNS support
 * Provide SSH/SFTP access through the Java runtime
+* Provide a single-port Gateway for HTTP, SSH/SFTP, and manual TCP routing
 * Prepare the architecture for a future Web Panel
 
 ## Features
@@ -101,11 +102,218 @@ Connect using SFTP:
 sftp -P <port> <username>@<domain-or-ip>
 ```
 
+### Gateway Service
+
+Mini Java Terminal includes an experimental Gateway Service.
+
+The Gateway Service is designed for restricted hosting environments where only one public TCP port is available.
+
+The Gateway can listen on the public `SERVER_PORT` and route different protocols internally.
+
+Supported Gateway behavior:
+
+```text
+HTTP request  -> handled directly inside server.jar
+SSH/SFTP      -> proxied to a local SSH/SFTP service
+TCP fallback  -> proxied to a manually configured TCP route
+```
+
+This allows HTTP and SSH/SFTP to work through the same public port.
+
+Example:
+
+```text
+PUBLIC_IP:PUBLIC_PORT
+        │
+        ▼
+GatewayService
+        ├── HTTP      -> internal HTTP handler
+        ├── SSH/SFTP  -> 127.0.0.1:2022
+        └── TCP route -> 127.0.0.1:<custom_port>
+```
+
+The public Gateway port is read from:
+
+```text
+SERVER_PORT
+```
+
+If `SERVER_PORT` is not available, the fallback port is:
+
+```text
+4848
+```
+
+## Gateway Commands
+
+Supported Gateway commands:
+
+```text
+gateway-help
+gateway-show
+gateway-set <key> <value>
+gateway-default <route|close>
+gateway-route-add <name> <host> <port>
+gateway-route-remove <name>
+gateway-route-enable <name>
+gateway-route-disable <name>
+```
+
+### Gateway Command Examples
+
+Add a Minecraft Java backend route:
+
+```text
+gateway-route-add mc 127.0.0.1 25565
+gateway-default mc
+gateway-show
+```
+
+Disable the default TCP backend:
+
+```text
+gateway-default close
+```
+
+Disable a route:
+
+```text
+gateway-route-disable mc
+```
+
+Enable a route:
+
+```text
+gateway-route-enable mc
+```
+
+Remove a route:
+
+```text
+gateway-route-remove mc
+```
+
+Add a Velocity backend route:
+
+```text
+gateway-route-add velocity 127.0.0.1 25577
+gateway-default velocity
+```
+
+### Gateway Configuration Example
+
+Gateway configuration is stored in:
+
+```text
+terminal-state.properties
+```
+
+Example configuration:
+
+```properties
+gateway.http.enabled=true
+
+gateway.ssh.enabled=true
+gateway.ssh.host=127.0.0.1
+gateway.ssh.port=2022
+
+gateway.tcp.enabled=true
+gateway.tcp.default=mc
+gateway.tcp.routes=mc
+
+gateway.tcp.mc.enabled=true
+gateway.tcp.mc.host=127.0.0.1
+gateway.tcp.mc.port=25565
+```
+
+To close all unknown TCP traffic:
+
+```properties
+gateway.tcp.default=close
+```
+
+To add multiple manual TCP routes:
+
+```properties
+gateway.tcp.routes=mc,velocity
+
+gateway.tcp.mc.enabled=true
+gateway.tcp.mc.host=127.0.0.1
+gateway.tcp.mc.port=25565
+
+gateway.tcp.velocity.enabled=true
+gateway.tcp.velocity.host=127.0.0.1
+gateway.tcp.velocity.port=25577
+```
+
+## Recommended Single-Port Setup
+
+When using the Gateway, the public port should be owned by `GatewayService`.
+
+Example:
+
+```text
+Gateway public:
+0.0.0.0:${SERVER_PORT}
+
+SSH/SFTP internal:
+127.0.0.1:2022
+```
+
+Recommended SSH/SFTP setup:
+
+```text
+ssh-stop
+ssh-set host 127.0.0.1
+ssh-set port 2022
+ssh-set user <username>
+ssh-set pass <password>
+ssh-set root /home/container
+ssh-start
+```
+
+External users can still connect through the public Gateway port:
+
+```bash
+ssh <username>@<domain-or-ip> -p <public_port>
+```
+
+```bash
+sftp -P <public_port> <username>@<domain-or-ip>
+```
+
+HTTP can also be accessed through the same public port:
+
+```text
+http://<domain-or-ip>:<public_port>
+```
+
+## Basic Commands
+
+```text
+help
+pwd
+cd <folder>
+clear
+public-ip
+timeout
+timeout <seconds>
+shutdown-terminal
+```
+
+Timeout behavior:
+
+```text
+0   = no timeout
+60  = stop command after 60 seconds
+300 = stop command after 5 minutes
+```
+
 ## Project Structure
 
 ```text
 mini-java-terminal/
-├── scr/
+├── src/
 │   └── terminal/
 │       ├── Main.java
 │       │
@@ -115,6 +323,7 @@ mini-java-terminal/
 │       │
 │       ├── services/
 │       │   ├── CloudflareDnsService.java
+│       │   ├── GatewayService.java
 │       │   └── SshServerService.java
 │       │
 │       └── system/
@@ -133,6 +342,7 @@ mini-java-terminal/
 ├── target/
 ├── pom.xml
 ├── README.md
+├── WhatNew.md
 └── .gitignore
 ```
 
@@ -146,7 +356,7 @@ command/
 → Routes user input to the correct internal command or service.
 
 services/
-→ Feature-level services such as Cloudflare DDNS and SSH/SFTP.
+→ Feature-level services such as Cloudflare DDNS, Gateway routing, and SSH/SFTP.
 
 system/
 → Core runtime utilities such as shell execution, logging, state storage, public IP checking, command blocking, and runtime configuration.
@@ -169,7 +379,8 @@ logs/
 * Java 17 or newer
 * Maven
 * A terminal or server panel that supports standard input/output
-* Public ports if SSH/SFTP access is needed
+* Public ports if direct SSH/SFTP access is needed
+* A public TCP port if Gateway mode is used
 
 ## Build
 
@@ -211,27 +422,6 @@ Or:
 java -jar dist/server.jar
 ```
 
-## Basic Commands
-
-```text
-help
-pwd
-cd <folder>
-clear
-public-ip
-timeout
-timeout <seconds>
-shutdown-terminal
-```
-
-Timeout behavior:
-
-```text
-0  = no timeout
-60 = stop command after 60 seconds
-300 = stop command after 5 minutes
-```
-
 ## Runtime Files
 
 The app may generate:
@@ -241,6 +431,16 @@ logs/
 terminal-state.properties
 ssh-hostkey.ser
 ```
+
+## Notes
+
+* Gateway Service is experimental.
+* HTTP and SSH/SFTP through the same public TCP port have been tested.
+* Manual TCP route support is experimental and depends on the target service.
+* Minecraft Java backend routing may require additional testing.
+* UDP routing is not included in this version.
+* Gateway configuration is reloaded for new incoming connections.
+* The project is moving toward a single-port multi-service runtime architecture.
 
 ## Security Notice
 
