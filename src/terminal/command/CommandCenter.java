@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class CommandCenter {
     private static final String RESET = "\u001B[0m";
@@ -177,6 +180,47 @@ public class CommandCenter {
             return true;
         }
 
+                // Gateway
+        if (command.equalsIgnoreCase("gateway-help")) {
+            printGatewayHelp();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("gateway-show")) {
+            showGatewayConfig();
+            return true;
+        }
+
+        if (command.startsWith("gateway-set ")) {
+            handleGatewaySet(command);
+            return true;
+        }
+
+        if (command.startsWith("gateway-default ")) {
+            handleGatewayDefault(command);
+            return true;
+        }
+
+        if (command.startsWith("gateway-route-add ")) {
+            handleGatewayRouteAdd(command);
+            return true;
+        }
+
+        if (command.startsWith("gateway-route-remove ")) {
+            handleGatewayRouteRemove(command);
+            return true;
+        }
+
+        if (command.startsWith("gateway-route-enable ")) {
+            handleGatewayRouteToggle(command, true);
+            return true;
+        }
+
+        if (command.startsWith("gateway-route-disable ")) {
+            handleGatewayRouteToggle(command, false);
+            return true;
+        }
+
         return false;
     }
 
@@ -282,6 +326,263 @@ public class CommandCenter {
         }
     }
 
+        private void handleGatewaySet(String command) {
+        String raw = command.substring("gateway-set ".length()).trim();
+
+        int firstSpace = raw.indexOf(' ');
+
+        if (firstSpace <= 0) {
+            System.out.println(RED + "Dùng: gateway-set <key> <value>" + RESET);
+            System.out.println("Ví dụ: gateway-set gateway.http.enabled true");
+            return;
+        }
+
+        String key = raw.substring(0, firstSpace).trim();
+        String value = raw.substring(firstSpace + 1).trim();
+
+        if (!key.startsWith("gateway.")) {
+            System.out.println(RED + "Key gateway phải bắt đầu bằng gateway." + RESET);
+            return;
+        }
+
+        try {
+            context.stateStore().set(key, value);
+            System.out.println(GREEN + "[Gateway] Đã lưu " + key + " = " + value + RESET);
+            context.logService().write("[GATEWAY SET] " + key + " = " + value + "\n");
+        } catch (Exception e) {
+            System.out.println(RED + "[Gateway] Lỗi khi lưu config: " + e.getMessage() + RESET);
+        }
+    }
+
+    private void handleGatewayDefault(String command) {
+        String routeName = command.substring("gateway-default ".length()).trim();
+
+        if (routeName.isBlank()) {
+            System.out.println(RED + "Dùng: gateway-default <route|close>" + RESET);
+            return;
+        }
+
+        if (!routeName.equalsIgnoreCase("close") && !isValidGatewayRouteName(routeName)) {
+            System.out.println(RED + "Tên route không hợp lệ. Chỉ dùng chữ, số, -, _" + RESET);
+            return;
+        }
+
+        try {
+            context.stateStore().set("gateway.tcp.default", routeName);
+            System.out.println(GREEN + "[Gateway] Default TCP route = " + routeName + RESET);
+            context.logService().write("[GATEWAY DEFAULT] " + routeName + "\n");
+        } catch (Exception e) {
+            System.out.println(RED + "[Gateway] Lỗi: " + e.getMessage() + RESET);
+        }
+    }
+
+    private void handleGatewayRouteAdd(String command) {
+        String raw = command.substring("gateway-route-add ".length()).trim();
+        String[] parts = raw.split("\\s+");
+
+        if (parts.length < 3) {
+            System.out.println(RED + "Dùng: gateway-route-add <name> <host> <port>" + RESET);
+            System.out.println("Ví dụ: gateway-route-add mc 127.0.0.1 25565");
+            return;
+        }
+
+        String name = parts[0].trim();
+        String host = parts[1].trim();
+        String portText = parts[2].trim();
+
+        if (!isValidGatewayRouteName(name)) {
+            System.out.println(RED + "Tên route không hợp lệ. Chỉ dùng chữ, số, -, _" + RESET);
+            return;
+        }
+
+        int port;
+
+        try {
+            port = Integer.parseInt(portText);
+        } catch (NumberFormatException e) {
+            System.out.println(RED + "Port phải là số." + RESET);
+            return;
+        }
+
+        if (port <= 0 || port > 65535) {
+            System.out.println(RED + "Port không hợp lệ." + RESET);
+            return;
+        }
+
+        try {
+            List<String> routes = getGatewayRouteNames();
+
+            if (!routes.contains(name)) {
+                routes.add(name);
+            }
+
+            saveGatewayRouteNames(routes);
+
+            context.stateStore().set("gateway.tcp." + name + ".enabled", "true");
+            context.stateStore().set("gateway.tcp." + name + ".host", host);
+            context.stateStore().set("gateway.tcp." + name + ".port", String.valueOf(port));
+            context.stateStore().set("gateway.tcp.enabled", "true");
+
+            System.out.println(GREEN + "[Gateway] Đã thêm route: " + name + " -> " + host + ":" + port + RESET);
+            context.logService().write("[GATEWAY ROUTE ADD] " + name + " -> " + host + ":" + port + "\n");
+
+        } catch (Exception e) {
+            System.out.println(RED + "[Gateway] Lỗi khi thêm route: " + e.getMessage() + RESET);
+        }
+    }
+
+    private void handleGatewayRouteRemove(String command) {
+        String name = command.substring("gateway-route-remove ".length()).trim();
+
+        if (!isValidGatewayRouteName(name)) {
+            System.out.println(RED + "Tên route không hợp lệ." + RESET);
+            return;
+        }
+
+        try {
+            List<String> routes = getGatewayRouteNames();
+            routes.remove(name);
+            saveGatewayRouteNames(routes);
+
+            context.stateStore().remove("gateway.tcp." + name + ".enabled");
+            context.stateStore().remove("gateway.tcp." + name + ".host");
+            context.stateStore().remove("gateway.tcp." + name + ".port");
+
+            String currentDefault = context.stateStore().get("gateway.tcp.default", "close");
+
+            if (currentDefault.equalsIgnoreCase(name)) {
+                context.stateStore().set("gateway.tcp.default", "close");
+            }
+
+            System.out.println(GREEN + "[Gateway] Đã xóa route: " + name + RESET);
+            context.logService().write("[GATEWAY ROUTE REMOVE] " + name + "\n");
+
+        } catch (Exception e) {
+            System.out.println(RED + "[Gateway] Lỗi khi xóa route: " + e.getMessage() + RESET);
+        }
+    }
+
+    private void handleGatewayRouteToggle(String command, boolean enabled) {
+        String prefix = enabled ? "gateway-route-enable " : "gateway-route-disable ";
+        String name = command.substring(prefix.length()).trim();
+
+        if (!isValidGatewayRouteName(name)) {
+            System.out.println(RED + "Tên route không hợp lệ." + RESET);
+            return;
+        }
+
+        try {
+            context.stateStore().set("gateway.tcp." + name + ".enabled", String.valueOf(enabled));
+
+            if (enabled) {
+                System.out.println(GREEN + "[Gateway] Đã bật route: " + name + RESET);
+            } else {
+                System.out.println(YELLOW + "[Gateway] Đã tắt route: " + name + RESET);
+            }
+
+            context.logService().write("[GATEWAY ROUTE TOGGLE] " + name + " enabled=" + enabled + "\n");
+
+        } catch (Exception e) {
+            System.out.println(RED + "[Gateway] Lỗi: " + e.getMessage() + RESET);
+        }
+    }
+
+    private void showGatewayConfig() throws IOException {
+        context.stateStore().load();
+
+        System.out.println(CYAN + "[GATEWAY CONFIG]" + RESET);
+        System.out.println("gateway.http.enabled = " + context.stateStore().get("gateway.http.enabled", "true"));
+        System.out.println();
+
+        System.out.println(YELLOW + "SSH/SFTP:" + RESET);
+        System.out.println("gateway.ssh.enabled  = " + context.stateStore().get("gateway.ssh.enabled", "true"));
+        System.out.println("gateway.ssh.host     = " + context.stateStore().get("gateway.ssh.host", "127.0.0.1"));
+        System.out.println("gateway.ssh.port     = " + context.stateStore().get("gateway.ssh.port", "2022"));
+        System.out.println();
+
+        System.out.println(YELLOW + "TCP routes:" + RESET);
+        System.out.println("gateway.tcp.enabled  = " + context.stateStore().get("gateway.tcp.enabled", "true"));
+        System.out.println("gateway.tcp.default  = " + context.stateStore().get("gateway.tcp.default", "close"));
+        System.out.println("gateway.tcp.routes   = " + context.stateStore().get("gateway.tcp.routes", ""));
+
+        List<String> routes = getGatewayRouteNames();
+
+        if (routes.isEmpty()) {
+            System.out.println("  Không có route TCP nào.");
+        } else {
+            for (String name : routes) {
+                System.out.println();
+                System.out.println("  [" + name + "]");
+                System.out.println("  enabled = " + context.stateStore().get("gateway.tcp." + name + ".enabled", "false"));
+                System.out.println("  host    = " + context.stateStore().get("gateway.tcp." + name + ".host", ""));
+                System.out.println("  port    = " + context.stateStore().get("gateway.tcp." + name + ".port", ""));
+            }
+        }
+
+        context.logService().write("[GATEWAY SHOW]\n");
+    }
+
+    private void printGatewayHelp() {
+        System.out.println(YELLOW + "Gateway Commands:" + RESET);
+        System.out.println("gateway-help                                  - Xem hướng dẫn Gateway");
+        System.out.println("gateway-show                                  - Xem cấu hình Gateway");
+        System.out.println("gateway-set <key> <value>                    - Set config thủ công");
+        System.out.println("gateway-default <route|close>                - Chọn TCP route mặc định");
+        System.out.println();
+
+        System.out.println(YELLOW + "TCP route management:" + RESET);
+        System.out.println("gateway-route-add <name> <host> <port>       - Thêm/sửa route TCP");
+        System.out.println("gateway-route-remove <name>                  - Xóa route TCP");
+        System.out.println("gateway-route-enable <name>                  - Bật route TCP");
+        System.out.println("gateway-route-disable <name>                 - Tắt route TCP");
+        System.out.println();
+
+        System.out.println(YELLOW + "Ví dụ:" + RESET);
+        System.out.println("gateway-route-add mc 127.0.0.1 25565");
+        System.out.println("gateway-default mc");
+        System.out.println("gateway-route-add velocity 127.0.0.1 25577");
+        System.out.println("gateway-default velocity");
+        System.out.println("gateway-default close");
+        System.out.println();
+
+        System.out.println(YELLOW + "Config keys thường dùng:" + RESET);
+        System.out.println("gateway.http.enabled true");
+        System.out.println("gateway.ssh.enabled true");
+        System.out.println("gateway.ssh.host 127.0.0.1");
+        System.out.println("gateway.ssh.port 2022");
+        System.out.println("gateway.tcp.enabled true");
+    }
+
+    private List<String> getGatewayRouteNames() {
+        String raw = context.stateStore().get("gateway.tcp.routes", "").trim();
+
+        if (raw.isBlank()) {
+            return new ArrayList<>();
+        }
+
+        List<String> result = new ArrayList<>();
+
+        Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(item -> !item.isBlank())
+                .filter(this::isValidGatewayRouteName)
+                .forEach(item -> {
+                    if (!result.contains(item)) {
+                        result.add(item);
+                    }
+                });
+
+        return result;
+    }
+
+    private void saveGatewayRouteNames(List<String> routes) throws IOException {
+        context.stateStore().set("gateway.tcp.routes", String.join(",", routes));
+    }
+
+    private boolean isValidGatewayRouteName(String name) {
+        return name != null && name.matches("[A-Za-z0-9_-]+");
+    }
+
     private void printHelp() throws IOException {
         System.out.println(YELLOW + "Mini Java Terminal Commands:" + RESET);
         System.out.println("help                         - Xem hướng dẫn");
@@ -321,6 +622,17 @@ public class CommandCenter {
 
         System.out.println(YELLOW + "Compatibility aliases:" + RESET);
         System.out.println("sftp-set / sftp-show / sftp-start / sftp-stop / sftp-status");
+        System.out.println();
+        
+        System.out.println(YELLOW + "Gateway:" + RESET);
+        System.out.println("gateway-help                                  - Xem hướng dẫn Gateway");
+        System.out.println("gateway-show                                  - Xem cấu hình Gateway");
+        System.out.println("gateway-set <key> <value>                    - Set config Gateway thủ công");
+        System.out.println("gateway-route-add <name> <host> <port>       - Thêm/sửa route TCP");
+        System.out.println("gateway-route-remove <name>                  - Xóa route TCP");
+        System.out.println("gateway-route-enable <name>                  - Bật route TCP");
+        System.out.println("gateway-route-disable <name>                 - Tắt route TCP");
+        System.out.println("gateway-default <route|close>                - Chọn TCP route mặc định");
         System.out.println();
 
         System.out.println("shutdown-terminal            - Tắt app");

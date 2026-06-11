@@ -1,6 +1,7 @@
 package terminal.command;
 
 import terminal.services.CloudflareDnsService;
+import terminal.services.GatewayService;
 import terminal.services.SshServerService;
 import terminal.system.CommandGuard;
 import terminal.system.LogService;
@@ -17,6 +18,7 @@ public record CommandContext(
         PublicIpService publicIpService,
         CommandGuard commandGuard,
         CloudflareDnsService cloudflareDnsService,
-        SshServerService sshServerService
+        SshServerService sshServerService,
+        GatewayService gatewayService
 ) {
 }
