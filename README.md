@@ -5,7 +5,7 @@
 ## Version
 
 ```text
-v2.3.26
+v2.3.27
 ```
 
 ## Overview
@@ -22,7 +22,6 @@ Core goals:
 * Provide Cloudflare DDNS support
 * Provide SSH/SFTP access through the Java runtime
 * Provide an experimental Gateway layer for HTTP, SSH/SFTP proxying, and manual TCP routing
-* Prepare the architecture for a future Web Panel
 
 ## Features
 
@@ -155,6 +154,7 @@ Connect using SFTP:
 ```bash
 sftp -P <port> <username>@<domain-or-ip>
 ```
+- **Note:** For windwos terminal. the tty still not working so mjt will use simple_terminal mode for default
 
 ### Gateway Service
 
@@ -446,9 +446,6 @@ system/
 scripts/
 → Development helper scripts.
 
-dist/
-→ Optional output folder for copied release JAR files.
-
 target/
 → Maven build output. This folder should not be committed.
 
@@ -496,12 +493,6 @@ The `server.jar` file is the shaded JAR and includes required dependencies such 
 
 ```bash
 java -jar target/server.jar
-```
-
-Or:
-
-```bash
-java -jar dist/server.jar
 ```
 
 ## Runtime Files
