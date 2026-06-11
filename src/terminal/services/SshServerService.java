@@ -139,9 +139,14 @@ public class SshServerService {
             // SFTP root folder
             sshServer.setFileSystemFactory(new VirtualFileSystemFactory(root));
 
-            // SSH real terminal shell with PTY helper fallback
-            sshServer.setShellFactory(channel -> new RealTerminalShell(root));
-
+            // SSH shell
+            // Linux/container: real terminal with PTY helper fallback.
+            // Windows host: use simple line-based shell because Windows cmd.exe does not provide a real PTY here.
+            if (isWindowsHost()) {
+                sshServer.setShellFactory(channel -> new SimpleSshShell(root));
+            } else {
+                sshServer.setShellFactory(channel -> new RealTerminalShell(root));
+            }
             sshServer.start();
             running = true;
 
@@ -192,6 +197,11 @@ public class SshServerService {
         System.out.println("Port    : " + stateStore.get("ssh.port", "none"));
         System.out.println("User    : " + stateStore.get("ssh.username", "none"));
         System.out.println("Root    : " + stateStore.get("ssh.root", "none"));
+    }
+
+    private boolean isWindowsHost() {
+        String osName = System.getProperty("os.name", "").toLowerCase();
+        return osName.contains("win");
     }
 
     private void validateConfig() throws IOException {
