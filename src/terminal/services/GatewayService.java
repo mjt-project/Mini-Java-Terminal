@@ -8,9 +8,14 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -178,65 +183,215 @@ public class GatewayService {
             InputStream clientInput,
             OutputStream clientOutput
     ) throws IOException {
-        String requestLine = firstText.split("\\R", 2)[0];
+        String requestHeader = readHttpHeader(firstText, clientInput);
+        String requestLine = requestHeader.split("\\R", 2)[0];  
 
-        String body = """
-                <!doctype html>
-                <html>
-                <head>
-                    <meta charset="utf-8">
-                    <title>Mini Java Gateway</title>
-                    <style>
-                        body {
-                            font-family: Arial, sans-serif;
-                            background: #f6f8fb;
-                            padding: 40px;
-                        }
-                        .card {
-                            background: #ffffff;
-                            border-radius: 16px;
-                            padding: 24px;
-                            max-width: 820px;
-                            box-shadow: 0 4px 18px rgba(0,0,0,.08);
-                        }
-                        h1 {
-                            margin-top: 0;
-                            color: #154cc3;
-                        }
-                        code {
-                            background: #eef2ff;
-                            padding: 3px 6px;
-                            border-radius: 6px;
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="card">
-                        <h1>Mini Java Gateway OK</h1>
-                        <p><b>HTTP</b> đang chạy riêng trong Gateway.</p>
-                        <p><b>SSH/SFTP</b> route qua <code>gateway.ssh.host</code> và <code>gateway.ssh.port</code>.</p>
-                        <p><b>TCP service</b> route thủ công qua <code>gateway.tcp.routes</code> và <code>gateway.tcp.default</code>.</p>
-                    </div>
-                </body>
-                </html>
-                """;
+        String[] parts = requestLine.split("\\s+"); 
 
-        byte[] bodyBytes = body.getBytes(StandardCharsets.UTF_8);
+        if (parts.length < 2) {
+            sendHttpText(clientOutput, 400, "Bad Request", "Bad Request");
+            return;
+        }   
+
+        String method = parts[0].trim().toUpperCase(Locale.ROOT);
+        String requestPath = parts[1].trim();   
+
+        if (!method.equals("GET") && !method.equals("HEAD")) {
+            sendHttpText(clientOutput, 405, "Method Not Allowed", "Method Not Allowed");
+            return;
+        }   
+
+        Path webRoot = Paths.get(
+                getConfigString("gateway.http.root", "www")
+        ).toAbsolutePath().normalize(); 
+
+        String indexFileName = getConfigString("gateway.http.index", "index.html");
+        boolean spaFallback = getConfigBoolean("gateway.http.spa", false);  
+
+        Path targetFile = resolveHttpFile(webRoot, requestPath, indexFileName); 
+
+        if (targetFile == null) {
+            sendHttpText(clientOutput, 403, "Forbidden", "Forbidden");
+            return;
+        }   
+
+        if (!Files.exists(targetFile) || !Files.isRegularFile(targetFile)) {
+            if (spaFallback) {
+                Path fallbackFile = webRoot.resolve(indexFileName).normalize(); 
+
+                if (fallbackFile.startsWith(webRoot)
+                        && Files.exists(fallbackFile)
+                        && Files.isRegularFile(fallbackFile)) {
+                    targetFile = fallbackFile;
+                } else {
+                    sendHttpText(clientOutput, 404, "Not Found", "Not Found");
+                    return;
+                }
+            } else {
+                sendHttpText(clientOutput, 404, "Not Found", "Not Found");
+                return;
+            }
+        }   
+
+        byte[] fileBytes = Files.readAllBytes(targetFile);
+        String contentType = guessContentType(targetFile);  
 
         String header = ""
                 + "HTTP/1.1 200 OK\r\n"
-                + "Content-Type: text/html; charset=utf-8\r\n"
+                + "Content-Type: " + contentType + "\r\n"
+                + "Content-Length: " + fileBytes.length + "\r\n"
+                + "Connection: close\r\n"
+                + "\r\n";   
+
+        clientOutput.write(header.getBytes(StandardCharsets.UTF_8));    
+
+        if (!method.equals("HEAD")) {
+            clientOutput.write(fileBytes);
+        }   
+
+        clientOutput.flush();   
+
+        System.out.println(CYAN + "[HTTP] " + requestLine + " -> " + targetFile + RESET);
+        logService.write("[HTTP] " + requestLine + " -> " + targetFile + "\n");
+    }   
+
+        private String readHttpHeader(String firstText, InputStream clientInput) throws IOException {   
+        StringBuilder header = new StringBuilder(firstText);
+
+        long deadline = System.currentTimeMillis() + 1500;
+
+        while (!header.toString().contains("\r\n\r\n")
+                && !header.toString().contains("\n\n")
+                && System.currentTimeMillis() < deadline) {
+
+            if (clientInput.available() <= 0) {
+                break;
+            }
+
+            byte[] buffer = new byte[Math.min(1024, clientInput.available())];
+            int read = clientInput.read(buffer);
+
+            if (read <= 0) {
+                break;
+            }
+
+            header.append(new String(buffer, 0, read, StandardCharsets.ISO_8859_1));
+        }
+
+        return header.toString();
+    }
+
+        private Path resolveHttpFile(Path webRoot, String requestPath, String indexFileName) {  
+        try {
+            String cleanPath = requestPath;
+
+            int queryIndex = cleanPath.indexOf('?');
+            if (queryIndex >= 0) {
+                cleanPath = cleanPath.substring(0, queryIndex);
+            }
+
+            int hashIndex = cleanPath.indexOf('#');
+            if (hashIndex >= 0) {
+                cleanPath = cleanPath.substring(0, hashIndex);
+            }
+
+            cleanPath = URLDecoder.decode(cleanPath, StandardCharsets.UTF_8);
+
+            if (cleanPath.isBlank() || cleanPath.equals("/")) {
+                cleanPath = "/" + indexFileName;
+            }
+
+            if (cleanPath.endsWith("/")) {
+                cleanPath = cleanPath + indexFileName;
+            }
+
+            while (cleanPath.startsWith("/")) {
+                cleanPath = cleanPath.substring(1);
+            }
+
+            Path target = webRoot.resolve(cleanPath).normalize();
+
+            // Chặn path traversal kiểu ../../...
+            if (!target.startsWith(webRoot)) {
+                return null;
+            }
+
+            return target;
+
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+        private void sendHttpText(  
+            OutputStream output,
+            int statusCode,
+            String statusText,
+            String body
+    ) throws IOException {
+        byte[] bodyBytes = body.getBytes(StandardCharsets.UTF_8);
+
+        String header = ""
+                + "HTTP/1.1 " + statusCode + " " + statusText + "\r\n"
+                + "Content-Type: text/plain; charset=utf-8\r\n"
                 + "Content-Length: " + bodyBytes.length + "\r\n"
                 + "Connection: close\r\n"
                 + "\r\n";
 
-        clientOutput.write(header.getBytes(StandardCharsets.UTF_8));
-        clientOutput.write(bodyBytes);
-        clientOutput.flush();
-
-        System.out.println(CYAN + "[HTTP] " + requestLine + RESET);
-        logService.write("[HTTP] " + requestLine + "\n");
+        output.write(header.getBytes(StandardCharsets.UTF_8));
+        output.write(bodyBytes);
+        output.flush();
     }
+
+        private String guessContentType(Path file) {
+            String name = file.getFileName().toString().toLowerCase(Locale.ROOT);   
+
+            if (name.endsWith(".html") || name.endsWith(".htm")) {
+                return "text/html; charset=utf-8";
+            }   
+
+            if (name.endsWith(".css")) {
+                return "text/css; charset=utf-8";
+            }   
+
+            if (name.endsWith(".js")) {
+                return "application/javascript; charset=utf-8";
+            }   
+
+            if (name.endsWith(".json")) {
+                return "application/json; charset=utf-8";
+            }   
+
+            if (name.endsWith(".png")) {
+                return "image/png";
+            }   
+
+            if (name.endsWith(".jpg") || name.endsWith(".jpeg")) {
+                return "image/jpeg";
+            }   
+
+            if (name.endsWith(".gif")) {
+                return "image/gif";
+            }   
+
+            if (name.endsWith(".svg")) {
+                return "image/svg+xml";
+            }   
+
+            if (name.endsWith(".ico")) {
+                return "image/x-icon";
+            }   
+
+            if (name.endsWith(".webp")) {
+                return "image/webp";
+            }   
+
+            if (name.endsWith(".txt")) {
+                return "text/plain; charset=utf-8";
+            }   
+
+            return "application/octet-stream";
+        }
 
     private void routeToSshService(Socket clientSocket, byte[] firstBytes, int firstLength) {
         String sshHost = getConfigString("gateway.ssh.host", "127.0.0.1");

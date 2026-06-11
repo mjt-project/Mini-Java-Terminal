@@ -492,6 +492,9 @@ public class CommandCenter {
 
         System.out.println(CYAN + "[GATEWAY CONFIG]" + RESET);
         System.out.println("gateway.http.enabled = " + context.stateStore().get("gateway.http.enabled", "true"));
+        System.out.println("gateway.http.root    = " + context.stateStore().get("gateway.http.root", "www"));
+        System.out.println("gateway.http.index   = " + context.stateStore().get("gateway.http.index", "index.html"));
+        System.out.println("gateway.http.spa     = " + context.stateStore().get("gateway.http.spa", "false"));
         System.out.println();
 
         System.out.println(YELLOW + "SSH/SFTP:" + RESET);
@@ -634,6 +637,13 @@ public class CommandCenter {
         System.out.println("gateway-route-disable <name>                 - Tắt route TCP");
         System.out.println("gateway-default <route|close>                - Chọn TCP route mặc định");
         System.out.println();
+
+        System.out.println(YELLOW + "HTTP static file service:" + RESET);
+    System.out.println("gateway-set gateway.http.root /home/container/www       - Đặt thư mục chứa HTML/CSS/JS");
+    System.out.println("gateway-set gateway.http.index index.html               - Đặt file index");
+    System.out.println("gateway-set gateway.http.spa true                       - Bật SPA fallback về index.html");
+    System.out.println("gateway-set gateway.http.spa false                      - Tắt SPA fallback");
+    System.out.println();
 
         System.out.println("shutdown-terminal            - Tắt app");
         System.out.println();
