@@ -59,7 +59,7 @@ public class ShellRunner {
             }
 
         } catch (Exception e) {
-            System.out.println(RED + "Lỗi khi chạy command: " + e.getMessage() + RESET);
+            System.out.println(RED + "Error running command: " + e.getMessage() + RESET);
 
             try {
                 logService.write("[ERROR] " + e.getMessage() + "\n");
@@ -113,8 +113,8 @@ public class ShellRunner {
         if (!finished) {
             process.destroyForcibly();
 
-            System.out.println(RED + "Command bị dừng vì chạy quá "
-                    + timeoutSeconds + " giây." + RESET);
+            System.out.println(RED + "Command stopped because it ran too long: "
+                    + timeoutSeconds + " seconds." + RESET);
 
             logService.write("[TIMEOUT] Command killed after "
                     + timeoutSeconds + " seconds\n");

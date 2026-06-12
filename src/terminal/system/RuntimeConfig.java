@@ -6,7 +6,7 @@ import java.nio.file.Paths;
 public class RuntimeConfig {
     private Path currentDir = Paths.get("").toAbsolutePath().normalize();
 
-    // 0 = không giới hạn thời gian chạy command
+    // 0 = no time limit for running commands
     private int commandTimeoutSeconds = 0;
 
     public Path getCurrentDir() {
@@ -23,13 +23,9 @@ public class RuntimeConfig {
 
     public void setCommandTimeoutSeconds(int commandTimeoutSeconds) {
         if (commandTimeoutSeconds < 0) {
-            throw new IllegalArgumentException("Timeout không được nhỏ hơn 0.");
+            throw new IllegalArgumentException("Timeout cannot be less than 0.");
         }
 
         this.commandTimeoutSeconds = commandTimeoutSeconds;
-    }
-
-    public boolean hasTimeout() {
-        return commandTimeoutSeconds > 0;
     }
 }

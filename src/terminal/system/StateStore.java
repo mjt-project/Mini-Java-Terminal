@@ -337,7 +337,8 @@ public class StateStore {
         properties.setProperty("app.version", "2.3.22");
         properties.setProperty("app.first-run", "true");
         properties.setProperty("app.migrated.terminal-state", "false");
-
+        properties.setProperty("app.command.prefix", ".");
+        properties.setProperty("app.prefix.show", ".");
         return properties;
     }
 
@@ -351,7 +352,9 @@ public class StateStore {
         properties.setProperty("ssh.password", "");
         properties.setProperty("ssh.root", "/home/container");
 
-        properties.setProperty("ssh.terminal.mode", "real-tty");
+        
+        properties.setProperty("# Terminal mode for SSH connections. Options: "," 'real-tty' or 'basic'");
+        properties.setProperty("ssh.terminal.mode", "basic");
         properties.setProperty("ssh.terminal.notice", "true");
 
         return properties;

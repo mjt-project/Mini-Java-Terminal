@@ -8,9 +8,9 @@ import java.nio.file.Paths;
 
 import terminal.command.CommandCenter;
 import terminal.command.CommandContext;
-import terminal.services.CloudflareDnsService;
-import terminal.services.GatewayService;
-import terminal.services.SshServerService;
+import terminal.services.cloudflare.CloudflareDnsService;
+import terminal.services.gateway.GatewayService;
+import terminal.services.sshd.SshServerService;
 import terminal.system.CommandGuard;
 import terminal.system.LogService;
 import terminal.system.PublicIpService;
@@ -96,11 +96,11 @@ public class Main {
 
         System.out.println();
         System.out.println(YELLOW + " Quick commands:" + RESET);
-        System.out.println("  help          - Show all commands");
-        System.out.println("  gateway-help  - Show Gateway commands");
-        System.out.println("  gateway-show  - Show Gateway config");
-        System.out.println("  ssh-show      - Show SSH/SFTP config");
-        System.out.println("  mjt-exit      - Stop Mini Java Terminal");
+        System.out.println("  .help          - Show all commands");
+        System.out.println("  .gateway-help  - Show Gateway commands");
+        System.out.println("  .gateway-show  - Show Gateway config");
+        System.out.println("  .ssh-show      - Show SSH/SFTP config");
+        System.out.println("  .mjt-exit      - Stop Mini Java Terminal");
         System.out.println();
 
         logService.write("[START] Mini Java Terminal v2.3.22\n");

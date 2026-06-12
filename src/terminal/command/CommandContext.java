@@ -1,8 +1,9 @@
 package terminal.command;
 
-import terminal.services.CloudflareDnsService;
-import terminal.services.GatewayService;
-import terminal.services.SshServerService;
+import terminal.services.cloudflare.CloudflareDnsService;
+import terminal.services.gateway.GatewayService;
+import terminal.services.sshd.SshServerService;
+
 import terminal.system.CommandGuard;
 import terminal.system.LogService;
 import terminal.system.PublicIpService;

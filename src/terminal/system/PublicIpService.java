@@ -60,7 +60,7 @@ public class PublicIpService {
             System.out.println(GREEN + "Public IPv4: " + ip + RESET);
 
         } catch (Exception e) {
-            System.out.println(RED + "Không check được public IP: "
+            System.out.println(RED + "Cannot check public IP: "
                     + e.getMessage()
                     + RESET);
 
