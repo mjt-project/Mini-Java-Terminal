@@ -5,7 +5,7 @@
 ## Version
 
 ```text
-v2.3.27
+v2.3.38
 ```
 
 ## Overview
@@ -154,7 +154,8 @@ Connect using SFTP:
 ```bash
 sftp -P <port> <username>@<domain-or-ip>
 ```
-- **Note:** For windwos terminal. the tty still not working so mjt will use simple_terminal mode for default
+
+**Note:** On Windows terminals, TTY is not yet functional, so MJT defaults to simple terminal mode.
 
 ### Gateway Service
 
