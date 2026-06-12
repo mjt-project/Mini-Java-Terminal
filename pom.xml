@@ -6,7 +6,7 @@
 
     <groupId>terminal</groupId>
     <artifactId>mini-java-terminal</artifactId>
-    <version>2.3.31</version>
+    <version>2.3.38</version>
 
     <properties>
         <maven.compiler.release>17</maven.compiler.release>
