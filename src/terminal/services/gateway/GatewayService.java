@@ -1,4 +1,4 @@
-package terminal.services;
+package terminal.services.gateway;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,7 +43,7 @@ public class GatewayService {
 
     public void start() {
         if (gatewayRunning) {
-            System.out.println(YELLOW + "[Gateway] Đang chạy rồi." + RESET);
+            System.out.println(YELLOW + "[Gateway] Already running." + RESET);
             return;
         }
 
@@ -65,7 +65,7 @@ public class GatewayService {
             logService.write("[GATEWAY START] 0.0.0.0:" + publicTcpPort + "\n");
 
         } catch (Exception e) {
-            System.out.println(RED + "[Gateway] Start lỗi: " + e.getMessage() + RESET);
+            System.out.println(RED + "[Gateway] Start error: " + e.getMessage() + RESET);
 
             try {
                 logService.write("[GATEWAY START ERROR] " + e.getMessage() + "\n");
@@ -95,11 +95,11 @@ public class GatewayService {
 
             } catch (SocketException e) {
                 if (gatewayRunning) {
-                    System.out.println(RED + "[Gateway] Socket lỗi: " + e.getMessage() + RESET);
+                    System.out.println(RED + "[Gateway] Socket error: " + e.getMessage() + RESET);
                 }
 
             } catch (Exception e) {
-                System.out.println(RED + "[Gateway] Accept lỗi: " + e.getMessage() + RESET);
+                System.out.println(RED + "[Gateway] Accept error: " + e.getMessage() + RESET);
             }
         }
     }
@@ -121,7 +121,7 @@ public class GatewayService {
                 firstLength = clientInput.read(firstBytes);
 
             } catch (SocketTimeoutException timeout) {
-                // SSH client đôi khi chờ server gửi banner trước.
+                // SSH client sometimes waits for server to send banner first.
                 routeToSshService(clientSocket, new byte[0], 0);
                 return;
             }
@@ -311,7 +311,7 @@ public class GatewayService {
 
             Path target = webRoot.resolve(cleanPath).normalize();
 
-            // Chặn path traversal kiểu ../../...
+            // Block path traversal like ../../...
             if (!target.startsWith(webRoot)) {
                 return null;
             }
