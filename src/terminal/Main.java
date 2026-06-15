@@ -17,6 +17,7 @@ import terminal.system.PublicIpService;
 import terminal.system.RuntimeConfig;
 import terminal.system.ShellRunner;
 import terminal.system.StateStore;
+import terminal.system.TargetProcessService;
 
 public class Main {
     private static final String RESET = "\u001B[0m";
@@ -33,6 +34,7 @@ public class Main {
             ShellRunner shellRunner = new ShellRunner(logService);
             PublicIpService publicIpService = new PublicIpService(logService);
             CommandGuard commandGuard = new CommandGuard(logService);
+            TargetProcessService targetProcessService = new TargetProcessService(logService);
 
             CloudflareDnsService cloudflareDnsService =
                     new CloudflareDnsService(stateStore, publicIpService, logService);
@@ -51,7 +53,8 @@ public class Main {
                     commandGuard,
                     cloudflareDnsService,
                     sshServerService,
-                    gatewayService
+                    gatewayService,
+                    targetProcessService
             );
 
             CommandCenter commandCenter = new CommandCenter(commandContext);
@@ -96,14 +99,15 @@ public class Main {
 
         System.out.println();
         System.out.println(YELLOW + " Quick commands:" + RESET);
-        System.out.println("  .help          - Show all commands");
-        System.out.println("  .gateway-help  - Show Gateway commands");
-        System.out.println("  .gateway-show  - Show Gateway config");
-        System.out.println("  .ssh-show      - Show SSH/SFTP config");
-        System.out.println("  .mjt-exit      - Stop Mini Java Terminal");
+        System.out.println("  .mjt help              - Show all commands");
+        System.out.println("  .mjt gateway help      - Show Gateway commands");
+        System.out.println("  .mjt ssh show          - Show SSH/SFTP config");
+        System.out.println("  .mjt minecraft-start   - Start Minecraft as managed target");
+        System.out.println("  .command <shell>       - Force run Linux shell command");
+        System.out.println("  .mjt exit              - Stop Mini Java Terminal");
         System.out.println();
 
-        logService.write("[START] Mini Java Terminal v2.3.22\n");
+        logService.write("[START] Mini Java Terminal v2.4.0\n");
         logService.write("[CURRENT DIR] " + runtimeConfig.getCurrentDir() + "\n");
     }
 }
