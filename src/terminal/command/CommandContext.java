@@ -10,6 +10,7 @@ import terminal.system.PublicIpService;
 import terminal.system.RuntimeConfig;
 import terminal.system.ShellRunner;
 import terminal.system.StateStore;
+import terminal.system.TargetProcessService;
 
 public record CommandContext(
         LogService logService,
@@ -20,6 +21,7 @@ public record CommandContext(
         CommandGuard commandGuard,
         CloudflareDnsService cloudflareDnsService,
         SshServerService sshServerService,
-        GatewayService gatewayService
+        GatewayService gatewayService,
+        TargetProcessService targetProcessService
 ) {
 }

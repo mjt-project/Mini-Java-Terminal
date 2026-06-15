@@ -47,22 +47,23 @@ public class GatewayService {
             return;
         }
 
+        String publicTcpHost = getPublicTcpHost();
         int publicTcpPort = getPublicTcpPort();
-
+            
         try {
             publicServerSocket = new ServerSocket();
             publicServerSocket.setReuseAddress(true);
-            publicServerSocket.bind(new InetSocketAddress("0.0.0.0", publicTcpPort));
+            publicServerSocket.bind(new InetSocketAddress(publicTcpHost, publicTcpPort));
 
             gatewayRunning = true;
 
-            printGatewayStartup(publicTcpPort);
+            printGatewayStartup(publicTcpHost, publicTcpPort);
 
             Thread acceptThread = new Thread(this::acceptLoop, "mjt-gateway-accept-loop");
             acceptThread.setDaemon(false);
             acceptThread.start();
 
-            logService.write("[GATEWAY START] 0.0.0.0:" + publicTcpPort + "\n");
+            logService.write("[GATEWAY START] " + publicTcpHost + ":" + publicTcpPort + "\n");
 
         } catch (Exception e) {
             System.out.println(RED + "[Gateway] Start error: " + e.getMessage() + RESET);
@@ -603,7 +604,7 @@ public class GatewayService {
         }
     }
 
-    private void printGatewayStartup(int publicTcpPort) throws IOException {
+    private void printGatewayStartup(String publicTcpHost, int publicTcpPort) throws IOException {
         reloadStateConfigQuietly();
 
         boolean httpEnabled = getConfigBoolean("gateway.http.enabled", true);
@@ -623,7 +624,7 @@ public class GatewayService {
         System.out.println(GREEN + " Gateway Service" + RESET);
         System.out.println(GREEN + "==================================================" + RESET);
 
-        System.out.println(CYAN + " Public TCP  : 0.0.0.0:" + publicTcpPort + RESET);
+        System.out.println(CYAN + " Public TCP  : " + publicTcpHost + ":" + publicTcpPort + RESET);
 
         System.out.println();
         System.out.println(YELLOW + " HTTP Static Files" + RESET);
@@ -664,14 +665,46 @@ public class GatewayService {
         System.out.println();
     }
 
-    private int getPublicTcpPort() {
-        String value = System.getenv().getOrDefault("SERVER_PORT", "4848");
+    private String getPublicTcpHost() {
+        String host = getConfigString("gateway.public.host", "127.0.0.1");
 
-        try {
-            return Integer.parseInt(value.trim());
-        } catch (Exception e) {
+        if (host.isBlank()) {
+            return "127.0.0.1";
+        }
+
+        return host;
+    }
+
+    private int getPublicTcpPort() {
+        String configured = getConfigString("gateway.public.port", "8080");
+    
+        if (!configured.equalsIgnoreCase("auto")) {
+            try {
+                int port = Integer.parseInt(configured.trim());
+            
+                if (port > 0 && port <= 65535) {
+                    return port;
+                }
+            
+            } catch (Exception ignored) {
+            }
+        
             return 4848;
         }
+    
+        String value = System.getenv().getOrDefault("SERVER_PORT", "8080");
+    
+        try {
+            int port = Integer.parseInt(value.trim());
+        
+            if (port > 0 && port <= 65535) {
+                return port;
+            }
+        
+        } catch (Exception ignored) {
+        }
+    
+        return 4848;
     }
 
     private void reloadStateConfigQuietly() {
@@ -741,7 +774,7 @@ public class GatewayService {
         }
     }
 
-    
+
     private String formatStatus(boolean enabled) {
         return enabled ? "ON" : "OFF";
     }

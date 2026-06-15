@@ -339,6 +339,7 @@ public class StateStore {
         properties.setProperty("app.migrated.terminal-state", "false");
         properties.setProperty("app.command.prefix", ".");
         properties.setProperty("app.prefix.show", ".");
+        properties.setProperty("minecraft.start-command", "bash start-minecraft.sh");
         return properties;
     }
 
@@ -364,7 +365,7 @@ public class StateStore {
         Properties properties = new Properties();
 
         properties.setProperty("gateway.enabled", "true");
-        properties.setProperty("gateway.public.host", "0.0.0.0");
+        properties.setProperty("gateway.public.host", "127.0.0.1");
         properties.setProperty("gateway.public.port", "auto");
 
         properties.setProperty("gateway.ssh.enabled", "true");

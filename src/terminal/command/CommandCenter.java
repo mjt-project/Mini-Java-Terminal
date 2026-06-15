@@ -15,46 +15,253 @@ public class CommandCenter {
     private static final String YELLOW = "\u001B[33m";
     private static final String RED = "\u001B[31m";
 
+    private enum RouteMode {
+        TERMINAL,
+        MINECRAFT
+    }
+
     private final CommandContext context;
+    private volatile RouteMode routeMode = RouteMode.TERMINAL;
 
     public CommandCenter(CommandContext context) {
         this.context = context;
+        this.context.targetProcessService().setOnExit(() -> {
+            routeMode = RouteMode.TERMINAL;
+            System.out.println(YELLOW + "[MJT] Target stopped. Switched to TERMINAL mode." + RESET);
+        });
     }
 
     public void handle(String command) throws IOException {
-        context.logService().write("\n========================================\n");
-        context.logService().write("[INPUT] " + command + "\n");
+        command = command == null ? "" : command.trim();
 
-        // Set . is a default prefix
-        if (command.startsWith(".")) {
-            String mjtCommand =
-                    command.substring(1)
-                           .trim();
-        
-            if (handleInternalCommand(mjtCommand)) {
-                return;
-            }
-        
-            System.out.println(
-                    "Unknown MJT command"
-            );
+        if (command.isEmpty()) {
             return;
         }
 
-        if (context.commandGuard().isBlocked(command)) {
+        context.logService().write("\n========================================\n");
+        context.logService().write("[INPUT] " + command + "\n");
+
+        if (isMjtNamespace(command)) {
+            handleMjtNamespace(command);
+            return;
+        }
+
+        if (isCommandNamespace(command)) {
+            handleCommandNamespace(command);
+            return;
+        }
+
+        // Backward compatibility for old commands such as .ssh-start, .gateway-show, .help.
+        // New recommended form is .mjt ssh start, .mjt gateway show, .mjt help.
+        if (command.startsWith(".")) {
+            String legacyMjtCommand = command.substring(1).trim();
+
+            if (handleInternalCommand(normalizeMjtCommand(legacyMjtCommand))) {
+                return;
+            }
+
+            System.out.println(RED + "Unknown prefixed command." + RESET);
+            System.out.println(YELLOW + "Use: .mjt help  or  .command <shell-command>" + RESET);
+            return;
+        }
+
+        if (routeMode == RouteMode.MINECRAFT) {
+            if (context.targetProcessService().isRunning()) {
+                context.targetProcessService().sendLine(command);
+                return;
+            }
+
+            routeMode = RouteMode.TERMINAL;
+            System.out.println(YELLOW + "[MJT] Minecraft is not running. Switched to TERMINAL mode." + RESET);
+        }
+
+        runShellCommand(command);
+    }
+
+    private boolean isMjtNamespace(String command) {
+        return command.equalsIgnoreCase(".mjt")
+                || command.toLowerCase().startsWith(".mjt ");
+    }
+
+    private boolean isCommandNamespace(String command) {
+        return command.equalsIgnoreCase(".command")
+                || command.toLowerCase().startsWith(".command ");
+    }
+
+    private void handleMjtNamespace(String command) throws IOException {
+        String raw = command.length() <= 4 ? "help" : command.substring(4).trim();
+
+        if (raw.isBlank()) {
+            raw = "help";
+        }
+
+        String mjtCommand = normalizeMjtCommand(raw);
+
+        if (handleInternalCommand(mjtCommand)) {
+            return;
+        }
+
+        System.out.println(RED + "Unknown MJT command: " + raw + RESET);
+        System.out.println(YELLOW + "Type: .mjt help" + RESET);
+    }
+
+    private void handleCommandNamespace(String command) throws IOException {
+        String raw = command.length() <= 8 ? "" : command.substring(8).trim();
+
+        if (raw.isBlank()) {
+            System.out.println(YELLOW + "Usage: .command <shell-command>" + RESET);
+            System.out.println("Example: .command ls");
+            System.out.println("Example: .command terminal");
+            System.out.println("Example: .command minecraft");
+            return;
+        }
+
+        if (raw.equalsIgnoreCase("terminal")) {
+            routeMode = RouteMode.TERMINAL;
+            System.out.println(GREEN + "[MJT] Switched to TERMINAL mode." + RESET);
+            return;
+        }
+
+        if (raw.equalsIgnoreCase("minecraft") || raw.equalsIgnoreCase("mc")) {
+            if (!context.targetProcessService().isRunning()) {
+                System.out.println(YELLOW + "[MJT] Minecraft target is not running." + RESET);
+                System.out.println(YELLOW + "Start it with: .mjt minecraft-start" + RESET);
+                return;
+            }
+
+            routeMode = RouteMode.MINECRAFT;
+            System.out.println(GREEN + "[MJT] Switched to MINECRAFT mode." + RESET);
+            return;
+        }
+
+        if (raw.toLowerCase().startsWith(".mjt")) {
+            System.out.println(RED + "[MJT] Do not run MJT commands through .command." + RESET);
+            System.out.println(YELLOW + "Run it directly, example: .mjt ssh start" + RESET);
+            return;
+        }
+
+        runShellCommand(raw);
+    }
+
+    private void runShellCommand(String shellCommand) throws IOException {
+        if (context.commandGuard().isBlocked(shellCommand)) {
             return;
         }
 
         context.shellRunner().run(
-                command,
+                shellCommand,
                 context.runtimeConfig().getCurrentDir(),
                 context.runtimeConfig().getCommandTimeoutSeconds()
         );
     }
 
+    private String normalizeMjtCommand(String command) {
+        String raw = command.trim().replaceAll("\\s+", " ");
+
+        if (raw.isBlank()) {
+            return "help";
+        }
+
+        if (raw.equalsIgnoreCase("exit")) {
+            return "mjt-exit";
+        }
+
+        if (raw.equalsIgnoreCase("mc start")) {
+            return "minecraft-start";
+        }
+
+        if (raw.equalsIgnoreCase("mc stop")) {
+            return "minecraft-stop";
+        }
+
+        if (raw.equalsIgnoreCase("mc kill")) {
+            return "minecraft-kill";
+        }
+
+        if (raw.equalsIgnoreCase("mc status")) {
+            return "minecraft-status";
+        }
+
+        int firstSpace = raw.indexOf(' ');
+
+        if (firstSpace > 0) {
+            String first = raw.substring(0, firstSpace).trim().toLowerCase();
+
+            if (first.equals("ssh")
+                    || first.equals("sftp")
+                    || first.equals("gateway")
+                    || first.equals("cloudflare")
+                    || first.equals("minecraft")
+                    || first.equals("target")
+                    || first.equals("timeout")
+                    || first.equals("cd")) {
+                return first + "-" + raw.substring(firstSpace + 1).trim();
+            }
+        }
+
+        return raw;
+    }
+
     private boolean handleInternalCommand(String command) throws IOException {
         if (command.equalsIgnoreCase("help")) {
             printHelp();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("mode")) {
+            printMode();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("minecraft-start") || command.equalsIgnoreCase("mc-start")) {
+            startMinecraftTarget();
+            return true;
+        }
+
+        if (command.startsWith("minecraft-start ") || command.startsWith("mc-start ")) {
+            String customCommand = command.substring(command.indexOf(' ') + 1).trim();
+            startTarget("minecraft", customCommand);
+            routeMode = RouteMode.MINECRAFT;
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("minecraft-stop") || command.equalsIgnoreCase("mc-stop")) {
+            context.targetProcessService().stopGracefully("stop");
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("minecraft-kill") || command.equalsIgnoreCase("mc-kill")) {
+            context.targetProcessService().kill();
+            routeMode = RouteMode.TERMINAL;
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("minecraft-status") || command.equalsIgnoreCase("mc-status")) {
+            context.targetProcessService().printStatus();
+            printMode();
+            return true;
+        }
+
+        if (command.startsWith("target-start ")) {
+            String targetCommand = command.substring("target-start ".length()).trim();
+            startTarget("target", targetCommand);
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("target-stop")) {
+            context.targetProcessService().stopGracefully();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("target-kill")) {
+            context.targetProcessService().kill();
+            routeMode = RouteMode.TERMINAL;
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("target-status")) {
+            context.targetProcessService().printStatus();
+            printMode();
             return true;
         }
 
@@ -97,7 +304,7 @@ public class CommandCenter {
 
         if (command.equalsIgnoreCase("exit")) {
             System.out.println(YELLOW + "The exit command has been blocked to prevent the server from going offline." + RESET);
-            System.out.println(YELLOW + "To shut down Mini Java Terminal, type: .mjt-exit" + RESET);
+            System.out.println(YELLOW + "To shut down Mini Java Terminal, type: .mjt exit" + RESET);
             context.logService().write("[BLOCKED EXIT]\n");
             return true;
         }       
@@ -236,6 +443,32 @@ public class CommandCenter {
         return false;
     }
 
+    private void startMinecraftTarget() throws IOException {
+        String startCommand = context.stateStore().get("minecraft.start-command", "bash start-minecraft.sh").trim();
+
+        if (startCommand.isBlank()) {
+            startCommand = "bash start-minecraft.sh";
+        }
+
+        startTarget("minecraft", startCommand);
+        routeMode = RouteMode.MINECRAFT;
+    }
+
+    private void startTarget(String name, String command) throws IOException {
+        context.targetProcessService().start(
+                name,
+                command,
+                context.runtimeConfig().getCurrentDir()
+        );
+    }
+
+    private void printMode() {
+        System.out.println(CYAN + "[MJT MODE]" + RESET);
+        System.out.println("Route mode : " + routeMode);
+        System.out.println("Target run : " + context.targetProcessService().isRunning());
+        System.out.println("Target name: " + context.targetProcessService().getTargetName());
+    }
+
      private void handlePrefixSet(String command) {
         String raw = command.substring("prefix-set".length()).trim();
         handleSshSetRaw(raw);
@@ -349,7 +582,7 @@ public class CommandCenter {
         int firstSpace = raw.indexOf(' ');
 
         if (firstSpace <= 0) {
-            System.out.println(RED + "Usage: .gateway-set <key> <value>" + RESET);
+            System.out.println(RED + "Usage: .mjt gateway set <key> <value>" + RESET);
             System.out.println("Example: .gateway-set gateway.http.enabled true");
             return;
         }
@@ -375,7 +608,7 @@ public class CommandCenter {
         String routeName = command.substring("gateway-default ".length()).trim();
 
         if (routeName.isBlank()) {
-            System.out.println(RED + "Usage: .gateway-default <route|close>" + RESET);
+            System.out.println(RED + "Usage: .mjt gateway default <route|close>" + RESET);
             return;
         }
 
@@ -398,7 +631,7 @@ public class CommandCenter {
         String[] parts = raw.split("\\s+");
 
         if (parts.length < 3) {
-            System.out.println(RED + "Usage: .gateway-route-add <name> <host> <port>" + RESET);
+            System.out.println(RED + "Usage: .mjt gateway route-add <name> <host> <port>" + RESET);
             System.out.println("Example: .gateway-route-add mc 127.0.0.1 25565");
             return;
         }
@@ -508,6 +741,7 @@ public class CommandCenter {
         context.stateStore().load();
 
         System.out.println(CYAN + "[GATEWAY CONFIG]" + RESET);
+        System.out.println();
         System.out.println(".gateway.http.enabled = " + context.stateStore().get("gateway.http.enabled", "true"));
         System.out.println(".gateway.http.root    = " + context.stateStore().get("gateway.http.root", "www"));
         System.out.println(".gateway.http.index   = " + context.stateStore().get("gateway.http.index", "index.html"));
@@ -546,18 +780,19 @@ private void printGatewayHelp() {
     printTitle("Gateway Commands");
 
     printSection("1. Gateway Core");
-    printCommand(".gateway-help", "View Gateway help");
-    printCommand(".gateway-show", "View full Gateway configuration");
-    printCommand(".gateway-set <key> <value>", "Set Gateway config manually");
-    printCommand(".gateway-default <route|close>", "Choose default TCP route or close TCP fallback");
+    printCommand(".mjt gateway help", "View Gateway help");
+    printCommand(".mjt gateway show", "View full Gateway configuration");
+    printCommand(".mjt gateway set <key> <value>", "Set Gateway config manually");
+    printCommand(".mjt gateway default <route|close>", "Choose default TCP route or close TCP fallback");
+    printCommand(".gateway-set gateway.public.host <ipv4>", "Bind local-only, Default is '127.0.0.1");
+    printCommand(".gateway-set gateway.public.port <port number>>", "Set http port number, Default is 'auto'");
 
     printSection("2. HTTP Static File Service");
     printCommand(".gateway-set gateway.http.enabled true", "Enable HTTP service");
     printCommand(".gateway-set gateway.http.enabled false", "Disable HTTP service");
-    printCommand(".gateway-set gateway.http.root /home/container/www", "Set HTML/CSS/JS root folder");
+    printCommand(".gateway-set gateway.http.root /path/to/dir", "Set HTML/CSS/JS root folder, Default '/home/container/www'");
     printCommand(".gateway-set gateway.http.index index.html", "Set default index file");
-    printCommand(".gateway-set gateway.http.spa true", "Enable SPA fallback to index.html");
-    printCommand(".gateway-set gateway.http.spa false", "Disable SPA fallback");
+    printCommand(".gateway-set gateway.http.spa true|false", "Enable or Disable SPA fallback to index.html");
 
     printSection("3. SSH / SFTP Gateway Proxy");
     printCommand(".gateway-set gateway.ssh.enabled true", "Enable SSH/SFTP route via Gateway");
@@ -566,10 +801,10 @@ private void printGatewayHelp() {
     printCommand(".gateway-set gateway.ssh.port 2022", "Set internal SSH/SFTP port");
 
     printSection("4. Manual TCP Routes");
-    printCommand(".gateway-route-add <name> <host> <port>", "Add or update TCP route");
-    printCommand(".gateway-route-remove <name>", "Remove TCP route");
-    printCommand(".gateway-route-enable <name>", "Enable TCP route");
-    printCommand(".gateway-route-disable <name>", "Disable TCP route");
+    printCommand(".mjt gateway route-add <name> <host> <port>", "Add or update TCP route");
+    printCommand(".mjt gateway route-remove <name>", "Remove TCP route");
+    printCommand(".mjt gateway route-enable <name>", "Enable TCP route");
+    printCommand(".mjt gateway route-disable <name>", "Disable TCP route");
     printCommand(".gateway-default <name>", "Select route as default TCP fallback");
     printCommand(".gateway-default close", "Close TCP fallback when not HTTP/SSH");
 
@@ -633,66 +868,76 @@ private void printGatewayHelp() {
         printTitle("Mini Java Terminal Commands");
 
         printSection("1. Terminal Runtime");
-        printCommand(".help", "View general help");
-        printCommand(".pwd", "Show current directory");
-        printCommand(".cd <folder>", "Change directory");
-        printCommand(".clear / .cls", "Clear the console screen");
-        printCommand(".public-ip", "Check the panel host public IPv4");
-        printCommand(".timeout", "View current timeout");
-        printCommand(".timeout <seconds>", "Set timeout, 0 = unlimited");
+        printCommand(".mjt help", "View general help");
+        printCommand(".mjt pwd", "Show current directory");
+        printCommand(".mjt cd <folder>", "Change directory");
+        printCommand(".mjt clear / .mjt cls", "Clear the console screen");
+        printCommand(".mjt public-ip", "Check the panel host public IPv4");
+        printCommand(".mjt timeout", "View current timeout");
+        printCommand(".mjt timeout <seconds>", "Set timeout, 0 = unlimited");
 
         printSection("2. Cloudflare DDNS");
-        printCommand(".cloudflare-show", "View Cloudflare config");
-        printCommand(".cloudflare-set token <token>", "Save Cloudflare API token");
-        printCommand(".cloudflare-set zone <zone_id>", "Save Cloudflare Zone ID");
-        printCommand(".cloudflare-set name <domain>", "Save DNS record name");
-        printCommand(".cloudflare-set proxied false", "Set DNS only");
-        printCommand(".cloudflare-set ttl 120", "Set TTL");
-        printCommand(".cloudflare-set interval 300", "Set IP check interval");
-        printCommand(".cloudflare-ddns-once", "Update DNS once");
-        printCommand(".cloudflare-ddns-start", "Start auto DDNS");
-        printCommand(".cloudflare-ddns-stop", "Stop auto DDNS");
-        printCommand(".cloudflare-ddns-status", "View DDNS status");
+        printCommand(".mjt cloudflare show", "View Cloudflare config");
+        printCommand(".mjt cloudflare set token <token>", "Save Cloudflare API token");
+        printCommand(".mjt cloudflare set zone <zone_id>", "Save Cloudflare Zone ID");
+        printCommand(".mjt cloudflare set name <domain>", "Save DNS record name");
+        printCommand(".mjt cloudflare set proxied false", "Set DNS only");
+        printCommand(".mjt cloudflare set ttl 120", "Set TTL");
+        printCommand(".mjt cloudflare set interval 300", "Set IP check interval");
+        printCommand(".mjt cloudflare ddns-once", "Update DNS once");
+        printCommand(".mjt cloudflare ddns-start", "Start auto DDNS");
+        printCommand(".mjt cloudflare ddns-stop", "Stop auto DDNS");
+        printCommand(".mjt cloudflare ddns-status", "View DDNS status");
 
         printSection("3. SSH / SFTP Server");
-        printCommand(".ssh-show", "View SSH/SFTP config");
-        printCommand(".ssh-set host <host>", "Bind host, e.g. 127.0.0.1 or 0.0.0.0");
-        printCommand(".ssh-set port <port>", "Set SSH/SFTP port");
-        printCommand(".ssh-set user <username>", "Set SSH/SFTP username");
-        printCommand(".ssh-set pass <password>", "Set SSH/SFTP password");
-        printCommand(".ssh-set mode <real-tty|basic>", "Set SSH terminal mode");        
-        printCommand(".ssh-set root <folder>", "Set SSH/SFTP root folder");
-        printCommand(".ssh-start", "Start SSH/SFTP server");
-        printCommand(".ssh-stop", "Stop SSH/SFTP server");
-        printCommand(".ssh-status", "View SSH/SFTP status");
+        printCommand(".mjt ssh show", "View SSH/SFTP config");
+        printCommand(".mjt ssh set host <host>", "Bind host, e.g. 127.0.0.1 or 0.0.0.0");
+        printCommand(".mjt ssh set port <port>", "Set SSH/SFTP port");
+        printCommand(".mjt ssh set user <username>", "Set SSH/SFTP username");
+        printCommand(".mjt ssh set pass <password>", "Set SSH/SFTP password");
+        printCommand(".mjt ssh set mode <real-tty|basic>", "Set SSH terminal mode");        
+        printCommand(".mjt ssh set root <folder>", "Set SSH/SFTP root folder");
+        printCommand(".mjt ssh start", "Start SSH/SFTP server");
+        printCommand(".mjt ssh stop", "Stop SSH/SFTP server");
+        printCommand(".mjt ssh status", "View SSH/SFTP status");
 
 
         printSection("4. SFTP Compatibility Aliases");
-        printCommand(".sftp-show", "Alias for .ssh-show");
-        printCommand(".sftp-set <key> <value>", "Alias for .ssh-set");
-        printCommand(".sftp-start", "Alias for .ssh-start");
-        printCommand(".sftp-stop", "Alias for .ssh-stop");
-        printCommand(".sftp-status", "Alias for .ssh-status");
+        printCommand(".mjt sftp show", "Alias for .mjt ssh show");
+        printCommand(".mjt sftp set <key> <value>", "Alias for .ssh-set");
+        printCommand(".mjt sftp start", "Alias for .mjt ssh start");
+        printCommand(".mjt sftp stop", "Alias for .mjt ssh stop");
+        printCommand(".mjt sftp status", "Alias for .mjt ssh status");
 
         printSection("5. Gateway");
-        printCommand(".gateway-help", "View full Gateway help");
-        printCommand(".gateway-show", "View Gateway configuration");
-        printCommand(".gateway-set <key> <value>", "Set Gateway config manually");
-        printCommand(".gateway-default <route|close>", "Choose default TCP route");
-        printCommand(".gateway-route-add <name> <host> <port>", "Add/update TCP route");
-        printCommand(".gateway-route-remove <name>", "Remove TCP route");
-        printCommand(".gateway-route-enable <name>", "Enable TCP route");
-        printCommand(".gateway-route-disable <name>", "Disable TCP route");
+        printCommand(".mjt gateway help", "View full Gateway help");
+        printCommand(".mjt gateway show", "View Gateway configuration");
+        printCommand(".mjt gateway set <key> <value>", "Set Gateway config manually");
+        printCommand(".mjt gateway default <route|close>", "Choose default TCP route");
+        printCommand(".mjt gateway route-add <name> <host> <port>", "Add/update TCP route");
+        printCommand(".mjt gateway route-remove <name>", "Remove TCP route");
+        printCommand(".mjt gateway route-enable <name>", "Enable TCP route");
+        printCommand(".mjt gateway route-disable <name>", "Disable TCP route");
 
-        printSection("6. Safety");
-        printCommand(".mjt-exit", "Shutdown Mini Java Terminal");
-        printCommand(".exit", "Blocked to prevent server offline");
+        printSection("6. Managed Target / Minecraft");
+        printCommand(".mjt minecraft-start", "Start bash start-minecraft.sh as managed target");
+        printCommand(".mjt minecraft-start <cmd>", "Start Minecraft target with custom command");
+        printCommand(".mjt minecraft-stop", "Send stop to Minecraft target");
+        printCommand(".mjt minecraft-kill", "Force kill Minecraft target");
+        printCommand(".mjt minecraft-status", "Show target and route mode");
+        printCommand(".command minecraft", "Route no-prefix input to Minecraft target");
+        printCommand(".command terminal", "Route no-prefix input to shell terminal");
+        printCommand(".command <shell>", "Force run a shell command while Minecraft is running");
+
+        printSection("7. Safety");
+        printCommand(".mjt exit", "Shutdown Mini Java Terminal");
+        printCommand(".exit", "Legacy alias: blocked to prevent server offline");
 
         printSection("Commands not recommended");
         System.out.println("  " + RED + "su, sudo, nano, vim, vi, top, htop" + RESET);
 
         System.out.println();
-        System.out.println(YELLOW + "Tip:" + RESET + " Type " + CYAN + "gateway-help" + RESET + " to view just the Gateway section.");
+        System.out.println(YELLOW + "Tip:" + RESET + " Type " + CYAN + ".mjt gateway help" + RESET + " to view just the Gateway section.");
         System.out.println();
 
         context.logService().write("[HELP]\n");
