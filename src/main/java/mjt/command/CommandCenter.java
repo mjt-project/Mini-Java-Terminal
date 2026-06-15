@@ -54,14 +54,9 @@ public class CommandCenter {
         // Backward compatibility for old commands such as .ssh-start, .gateway-show, .help.
         // New recommended form is .mjt ssh start, .mjt gateway show, .mjt help.
         if (command.startsWith(".")) {
-            String legacyMjtCommand = command.substring(1).trim();
-
-            if (handleInternalCommand(normalizeMjtCommand(legacyMjtCommand))) {
-                return;
-            }
-
-            System.out.println(RED + "Unknown prefixed command." + RESET);
-            System.out.println(YELLOW + "Use: .mjt help  or  .command <shell-command>" + RESET);
+            System.out.println(RED + "Invalid command namespace." + RESET);
+            System.out.println(YELLOW + "MJT commands   : .mjt <command>" + RESET);
+            System.out.println(YELLOW + "Shell commands : .command <shell-command>" + RESET);
             return;
         }
 
@@ -75,7 +70,19 @@ public class CommandCenter {
             System.out.println(YELLOW + "[MJT] Minecraft is not running. Switched to TERMINAL mode." + RESET);
         }
 
-        runShellCommand(command);
+        if (routeMode == RouteMode.MINECRAFT) {
+            if (context.targetProcessService().isRunning()) {
+                context.targetProcessService().sendLine(command);
+                return;
+            }       
+
+            routeMode = RouteMode.TERMINAL;
+            System.out.println(YELLOW + "[MJT] Minecraft is not running. Switched to TERMINAL mode." + RESET);
+        }       
+
+        System.out.println(YELLOW + "[MJT] Shell command must use: .command <shell-command>" + RESET);
+        System.out.println(YELLOW + "[MJT] Example: .command ls" + RESET);
+        System.out.println(YELLOW + "[MJT] To start Minecraft: .mjt minecraft start" + RESET);
     }
 
     private boolean isMjtNamespace(String command) {
@@ -140,8 +147,26 @@ public class CommandCenter {
             return;
         }
 
+        if (isManagedTargetStartCommand(raw)) {
+            System.out.println(RED + "[MJT] Do not start Minecraft/server through .command." + RESET);
+            System.out.println(YELLOW + "Use: .mjt minecraft start" + RESET);
+            return;
+        }
+
         runShellCommand(raw);
     }
+
+    private boolean isManagedTargetStartCommand(String raw) {
+        String lower = raw.toLowerCase().trim();
+        
+        return lower.equals("bash start-minecraft.sh")
+                || lower.equals("sh start-minecraft.sh")
+                || lower.equals("./start-minecraft.sh")
+                || lower.contains("start-minecraft.sh")
+                || lower.startsWith("java -jar minecraft_server.jar")
+                || lower.startsWith("java -jar server.jar")
+                || lower.contains("unix_args.txt");
+    }      
 
     private void runShellCommand(String shellCommand) throws IOException {
         if (context.commandGuard().isBlocked(shellCommand)) {
@@ -920,11 +945,11 @@ private void printGatewayHelp() {
         printCommand(".mjt gateway route-disable <name>", "Disable TCP route");
 
         printSection("6. Managed Target / Minecraft");
-        printCommand(".mjt minecraft-start", "Start bash start-minecraft.sh as managed target");
-        printCommand(".mjt minecraft-start <cmd>", "Start Minecraft target with custom command");
-        printCommand(".mjt minecraft-stop", "Send stop to Minecraft target");
-        printCommand(".mjt minecraft-kill", "Force kill Minecraft target");
-        printCommand(".mjt minecraft-status", "Show target and route mode");
+        printCommand(".mjt minecraft start", "Start bash start-minecraft.sh as managed target");
+        printCommand(".mjt minecraft start <cmd>", "Start Minecraft target with custom command");
+        printCommand(".mjt minecraft stop", "Send stop to Minecraft target");
+        printCommand(".mjt minecraft kill", "Force kill Minecraft target");
+        printCommand(".mjt minecraft status", "Show target and route mode");
         printCommand(".command minecraft", "Route no-prefix input to Minecraft target");
         printCommand(".command terminal", "Route no-prefix input to shell terminal");
         printCommand(".command <shell>", "Force run a shell command while Minecraft is running");
