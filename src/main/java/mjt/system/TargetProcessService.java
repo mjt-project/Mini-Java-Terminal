@@ -1,4 +1,4 @@
-package terminal.system;
+package main.java.mjt.system;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;

@@ -1,4 +1,4 @@
-package terminal;
+package main.java.mjt;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -6,18 +6,18 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 
-import terminal.command.CommandCenter;
-import terminal.command.CommandContext;
-import terminal.services.cloudflare.CloudflareDnsService;
-import terminal.services.gateway.GatewayService;
-import terminal.services.sshd.SshServerService;
-import terminal.system.CommandGuard;
-import terminal.system.LogService;
-import terminal.system.PublicIpService;
-import terminal.system.RuntimeConfig;
-import terminal.system.ShellRunner;
-import terminal.system.StateStore;
-import terminal.system.TargetProcessService;
+import main.java.mjt.command.CommandCenter;
+import main.java.mjt.command.CommandContext;
+import main.java.mjt.services.cloudflare.CloudflareDnsService;
+import main.java.mjt.services.gateway.GatewayService;
+import main.java.mjt.services.sshd.SshServerService;
+import main.java.mjt.system.CommandGuard;
+import main.java.mjt.system.LogService;
+import main.java.mjt.system.PublicIpService;
+import main.java.mjt.system.RuntimeConfig;
+import main.java.mjt.system.ShellRunner;
+import main.java.mjt.system.StateStore;
+import main.java.mjt.system.TargetProcessService;
 
 public class Main {
     private static final String RESET = "\u001B[0m";
@@ -90,7 +90,7 @@ public class Main {
     ) throws IOException {
         System.out.println();
         System.out.println(GREEN + "==================================================" + RESET);
-        System.out.println(GREEN + " Mini Java Terminal v2.4.0" + RESET);
+        System.out.println(GREEN + " Mini Java Terminal v2.4.6" + RESET);
         System.out.println(GREEN + "==================================================" + RESET);
 
         System.out.println(CYAN + " Status      : READY" + RESET);

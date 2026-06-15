@@ -1,4 +1,4 @@
-package terminal.command;
+package main.java.mjt.command;
 
 import java.io.IOException;
 import java.nio.file.Files;
