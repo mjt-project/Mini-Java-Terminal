@@ -5,7 +5,7 @@
 ## Version
 
 ```text
-v2.3.38
+v2.4.7
 ```
 
 ## Overview
