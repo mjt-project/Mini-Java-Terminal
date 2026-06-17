@@ -1,40 +1,67 @@
-MJT Router Mode v2.4.2
-======================
+# MJT v2.5.0
 
-Replace these files in your project, then rebuild the JAR:
+This release adds the new KeepAliveBot feature for Minecraft servers.
 
-src/main/java/terminal/Main.java
-src/main/java/terminal/command/CommandCenter.java
-src/main/java/terminal/command/CommandContext.java
-src/main/java/terminal/system/TargetProcessService.java
-src/main/java/terminal/system/StateStore.java
+KeepAliveBot is an offline-mode Minecraft bot that can join the server as a normal player and help keep the server active when enabled. This is useful for hosting environments that support renew / keep-alive behavior.
 
-Expected startup banner:
-Mini Java Terminal v2.4.2 ROUTER-MODE
+Main new feature:
 
-Strict command rule:
-.mjt <command>       = MJT internal command
-.command <command>   = Linux shell command
-no prefix            = Minecraft console input only when Minecraft target is running and mode is MINECRAFT
+* Added KeepAliveBot service
+* Added offline-mode bot login
+* Added bot reconnect loop
+* Added bot configuration commands
+* Added bot status display
+* Added support for using the bot with local Minecraft server address
 
-Start flow:
-.mjt ssh start
-.mjt gateway help
-.mjt minecraft start
+Recommended for:
 
-Then Minecraft console:
-say hello
-list
-stop
+* Minecraft servers with online-mode=false
+* Hosts that allow renew / keep-alive behavior
+* Servers that need one persistent bot player to stay active
 
-Shell while Minecraft is running:
-.command ls
-.command pwd
-.command curl https://example.com
+New commands:
+.mjt bot show
+.mjt bot status
+.mjt bot start
+.mjt bot stop
+.mjt bot set enabled true
+.mjt bot set host 127.0.0.1
+.mjt bot set port 25565
+.mjt bot set username MJT_Renew
+.mjt bot set reconnect 30
 
-Do NOT use:
-bash start-minecraft.sh
-.command bash start-minecraft.sh
+Basic setup:
+.mjt bot set enabled true
+.mjt bot set host 127.0.0.1
+.mjt bot set port 25565
+.mjt bot set username MJT_Renew
+.mjt bot set reconnect 60
+.mjt bot start
 
-Use managed target instead:
-.mjt minecraft start
+Expected behavior:
+
+* Bot connects to 127.0.0.1:25565
+* Bot joins as MJT_Renew
+* If disconnected, bot waits and reconnects automatically
+* Bot can be stopped manually with .mjt bot stop
+
+Minecraft server requirement:
+online-mode=false
+
+Recommended server config:
+server-ip=127.0.0.1
+server-port=25565
+online-mode=false
+
+If the bot name is already online:
+
+* The server may return duplicate_login
+* Change the bot username or stop the old MJT process first
+
+Example:
+.mjt bot set username MJT_Renew2
+.mjt bot stop
+.mjt bot start
+
+Release title:
+v2.5.0 - KeepAliveBot Release
