@@ -1,253 +1,538 @@
 # Mini Java Terminal
 
-> A lightweight Java terminal runtime for controlled command execution, logging, Cloudflare DDNS, SSH/SFTP access, Gateway routing, Minecraft managed target mode, and KeepAliveBot support.
+> Java-based control plane for terminal, website preview, Cloudflare Tunnel, SSH/SFTP, Gateway routing, Minecraft target process, and utility services inside restricted container hosting environments.
 
-## Version
+![Version](https://img.shields.io/badge/version-3.0.0--SNAPSHOT%2B1-blue)
+![Status](https://img.shields.io/badge/status-SNAPSHOT-orange)
+![Runtime](https://img.shields.io/badge/runtime-Java-green)
 
-```text
-v2.5.1
-```
+## Project Status
+
+`3.0.0-SNAPSHOT+1` is a development snapshot. It is intended to stabilize the new MJT service layout, server workspace layout, guest quick tunnel flow, cloudflared auto-installer, and help index before the next stable release.
+
+This snapshot is not a final production release.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Why This Version Exists](#why-this-version-exists)
+- [Core Features](#core-features)
+- [Architecture](#architecture)
+- [Directory Layout](#directory-layout)
+- [Requirements](#requirements)
+- [Build](#build)
+- [Quick Start](#quick-start)
+- [Command Model](#command-model)
+- [Website Service](#website-service)
+- [Guest Quick Tunnel](#guest-quick-tunnel)
+- [Cloudflared Auto Installer](#cloudflared-auto-installer)
+- [Cloudflare Tunnel Modes](#cloudflare-tunnel-modes)
+- [Gateway Router](#gateway-router)
+- [SSH/SFTP](#sshsftp)
+- [Minecraft Target](#minecraft-target)
+- [KeepAlive Bot](#keepalive-bot)
+- [Configuration Files](#configuration-files)
+- [Security Notes](#security-notes)
+- [Troubleshooting](#troubleshooting)
+- [Roadmap](#roadmap)
+- [Changelog](#changelog)
+
+---
 
 ## Overview
 
-Mini Java Terminal is a lightweight Java console application designed to run inside server-panel style environments.
+Mini Java Terminal, or MJT, is a Java application designed to run in restricted hosting environments where normal shell access, custom startup commands, or direct public ports may be limited.
 
-It provides a controlled terminal runtime with command routing, logging, SSH/SFTP access, Cloudflare DDNS, Gateway routing, Minecraft managed target support, and an offline-mode KeepAliveBot for supported Minecraft hosting environments.
+MJT acts as a **control plane**. It manages local services, command routing, configuration, logs, tunnel processes, Minecraft server processes, and system utilities.
 
-The project is built for learning, authorized testing, and managing simple runtime utilities in a controlled environment.
+MJT does **not** try to replace Cloudflare Tunnel, SSHD, HTTP servers, or Minecraft servers. Instead, it coordinates them safely from one command interface.
 
-Core goals:
+---
 
-* Keep the terminal runtime small and readable
-* Route commands through a shared command center
-* Support logs, working directory control, timeout control, and command guards
-* Provide Cloudflare DDNS support
-* Provide SSH/SFTP access through the Java runtime
-* Provide an experimental Gateway layer for HTTP, SSH/SFTP proxying, and manual TCP routing
-* Provide managed Minecraft server process control
-* Provide KeepAliveBot support for `online-mode=false` Minecraft servers
+## Why This Version Exists
 
-## What's New in v2.5.0
+Previous MJT builds mixed configuration, website files, runtime data, and service state in one place. This snapshot reorganizes the project so that MJT can grow into a stable service manager.
 
-### Added KeepAliveBot
-
-This release adds the new **KeepAliveBot** feature.
-
-KeepAliveBot is an offline-mode Minecraft bot that can join the server as a normal player and help keep the server active when enabled.
-
-It is useful for hosting environments that allow renew / keep-alive behavior.
-
-Main KeepAliveBot features:
-
-* Offline-mode bot login
-* Configurable bot username
-* Configurable host and port
-* Automatic reconnect loop
-* Manual start / stop / status commands
-* Designed for `online-mode=false` Minecraft servers
-
-### Added Minecraft Managed Target Support
-
-Mini Java Terminal can now start Minecraft as a managed child process instead of running Minecraft directly through `.command`.
-
-This prevents long-running Minecraft startup scripts from blocking the shell command runner.
-
-Recommended flow:
+The main goals are:
 
 ```text
-.mjt minecraft start
+1. Keep MJT runtime/config inside /home/container/MJT.
+2. Keep user/server data inside /home/container/server.
+3. Support local multi-site HTTP hosting.
+4. Publish guest websites through Cloudflare Quick Tunnel.
+5. Make guest mode work without Cloudflare tokens.
+6. Auto-install cloudflared based on OS and CPU architecture.
+7. Keep Gateway focused on TCP routing instead of public web hosting.
+8. Prepare for future custom domain and user/workspace support.
 ```
 
-Then send Minecraft console commands directly:
+---
+
+## Core Features
+
+- Strict command routing with `.mjt` and `.command` namespaces.
+- Local website hosting on `127.0.0.1` ports.
+- Guest website creation with temporary `trycloudflare.com` public URL.
+- Cloudflare Quick Tunnel support without account or token.
+- Cloudflared binary downloader and checker.
+- Cloudflare named tunnel support for advanced use cases.
+- Gateway TCP router for Minecraft, SSH/SFTP, and manual TCP forwarding.
+- Embedded SSH/SFTP server.
+- Managed Minecraft target process.
+- Minecraft KeepAlive bot service.
+- Service-based config layout.
+- Runtime logs and system task folders.
+
+---
+
+## Architecture
+
+MJT is split into two main zones.
 
 ```text
-list
-say hello
-stop
+/home/container/MJT
 ```
 
-## Command Rule
-
-Mini Java Terminal uses a strict command routing rule:
+This is the MJT control area. It stores configuration, logs, runtime state, downloads, and internal service metadata.
 
 ```text
-.mjt <command>       = MJT internal command
-.command <command>   = Linux / shell command
-no prefix            = Minecraft console input only when Minecraft target is running
+/home/container/server
 ```
 
-Examples:
+This is the user/server data area. It stores website content and Minecraft server workspaces.
+
+High-level flow for guest website publishing:
 
 ```text
-.mjt help
-.command ls
-.command pwd
-.mjt minecraft start
+Browser
+  ↓
+Cloudflare Quick Tunnel / trycloudflare.com
+  ↓
+cloudflared process inside container
+  ↓
+Local HTTP site on 127.0.0.1:<port>
+  ↓
+/home/container/server/website/www/guest/<guest-id>/main
 ```
 
-When Minecraft is running, no-prefix input is sent to the Minecraft console:
+---
+
+## Directory Layout
+
+Recommended runtime layout:
 
 ```text
-list
-say hello
-op PlayerName
-stop
+/home/container/
+├── MJT/
+│   ├── core/
+│   │   └── app.properties
+│   │
+│   ├── services/
+│   │   ├── ssh/
+│   │   ├── cloudflare/
+│   │   │   ├── account.properties
+│   │   │   ├── ddns-public-ipv4/
+│   │   │   └── tunnel/
+│   │   ├── http/
+│   │   │   └── sites/
+│   │   ├── tcp/
+│   │   ├── gateway/
+│   │   ├── minecraft/
+│   │   ├── https/
+│   │   └── bot/
+│   │
+│   ├── system/
+│   │   ├── downloads/
+│   │   │   └── cloudflared/
+│   │   └── tasks/
+│   │
+│   ├── runtime/
+│   │   ├── pids/
+│   │   └── cache/
+│   │
+│   └── logs/
+│
+└── server/
+    ├── website/
+    │   └── www/
+    │       ├── main/
+    │       ├── docs/
+    │       ├── panel/
+    │       └── guest/
+    │
+    └── Minecraft/
+        ├── Velocity/
+        ├── smp/
+        └── lobby/
 ```
 
-Do not start Minecraft through shell commands such as:
+---
+
+## Requirements
+
+Minimum requirements:
 
 ```text
-.command bash start-minecraft.sh
-bash start-minecraft.sh
+Java runtime compatible with the project build
+Maven for building from source
+Network access for cloudflared auto-download
+Linux container recommended
 ```
 
-Use managed target mode instead:
+Optional requirements:
 
 ```text
-.mjt minecraft start
+cloudflared binary for Cloudflare Tunnel
+Allocated public port if using Gateway
+Cloudflare account/token only for named tunnel or stable custom domain workflows
 ```
 
-## Features
+Guest Quick Tunnel does **not** require a Cloudflare token.
 
-## Terminal Runtime
+---
 
-Mini Java Terminal provides controlled command execution and runtime utilities.
+## Build
 
-Supported commands:
+Build with Maven:
+
+```bash
+mvn -U clean package
+```
+
+Check version after running MJT:
 
 ```text
-.mjt help
 .mjt --version
-.mjt version
-.mjt -v
-.mjt pwd
-.mjt cd <folder>
-.mjt clear
-.mjt cls
-.mjt public-ip
-.mjt timeout
-.mjt timeout <seconds>
-.mjt exit
 ```
 
-Shell command execution:
+Expected version:
 
 ```text
-.command <shell-command>
+Mini Java Terminal v3.0.0-SNAPSHOT+1
+```
+
+---
+
+## Quick Start
+
+After starting MJT, check help:
+
+```text
+.mjt help
+```
+
+Install or check `cloudflared`:
+
+```text
+.mjt system install cloudflared
+.mjt system cloudflared check
+```
+
+Create a guest website:
+
+```text
+.mjt website guest create
+```
+
+Show guest sites:
+
+```text
+.mjt website guest list
+```
+
+Show a specific guest site:
+
+```text
+.mjt website guest show <guest-id>
+```
+
+---
+
+## Command Model
+
+MJT uses strict routing.
+
+```text
+.mjt <command>       MJT internal command
+.command <command>   Force shell command
+no prefix            Minecraft console input only when target mode is active
 ```
 
 Examples:
 
 ```text
+.mjt help
+.mjt website list
+.mjt website guest create
 .command ls
-.command pwd
-.command curl https://example.com
-.command bash backup.sh
+.mjt minecraft start
+.command minecraft
 ```
 
-Timeout behavior:
+No-prefix shell execution is intentionally disabled for safety.
+
+---
+
+## Website Service
+
+Website sites run locally. They are not public by themselves unless exposed through Cloudflare Tunnel or another proxy.
+
+Default local site:
 
 ```text
-0   = no timeout
-60  = stop command after 60 seconds
-300 = stop command after 5 minutes
+main -> http://127.0.0.1:8081
+root -> /home/container/server/website/www/main
 ```
 
-The normal `exit` command is blocked to avoid accidentally stopping the runtime.
-
-To intentionally stop Mini Java Terminal, use:
+Website commands:
 
 ```text
-.mjt exit
+.mjt website list
+.mjt website show main
+.mjt website add docs 127.0.0.1 8082 /home/container/server/website/www/docs
+.mjt website start docs
+.mjt website stop docs
+.mjt website restart docs
+.mjt website set docs spa true
 ```
 
-## Minecraft Managed Target
+Legacy HTTP commands remain supported:
 
-Mini Java Terminal can manage a Minecraft server process as a child process.
+```text
+.mjt http site list
+.mjt http site add ...
+.mjt http site start ...
+```
 
-Supported commands:
+---
+
+## Guest Quick Tunnel
+
+Guest mode is for temporary preview websites.
+
+Command:
+
+```text
+.mjt website guest create
+```
+
+MJT will:
+
+```text
+1. Generate a guest ID.
+2. Create a guest website folder.
+3. Generate a default index.html.
+4. Pick a free local port from 8091 upward.
+5. Start a local HTTP site on 127.0.0.1:<port>.
+6. Start cloudflared quick tunnel.
+7. Parse the trycloudflare.com URL.
+8. Save the public URL to guest config.
+```
+
+Example output concept:
+
+```text
+Guest website created
+
+ID      : guest-a8f31
+Root    : /home/container/server/website/www/guest/guest-a8f31/main
+Local   : http://127.0.0.1:8091
+Public  : https://random-name.trycloudflare.com
+Mode    : Cloudflare Quick Tunnel
+```
+
+Important:
+
+```text
+Guest URLs are temporary.
+A trycloudflare.com URL may change after MJT, cloudflared, or container restart.
+```
+
+Guest commands:
+
+```text
+.mjt website guest list
+.mjt website guest show <guest-id>
+.mjt website guest stop <guest-id>
+.mjt website guest restart <guest-id>
+.mjt website guest remove <guest-id>
+```
+
+---
+
+## Cloudflared Auto Installer
+
+MJT includes a downloader for `cloudflared`.
+
+Command:
+
+```text
+.mjt system install cloudflared
+```
+
+The installer should:
+
+```text
+1. Detect operating system.
+2. Detect CPU architecture.
+3. Select a matching cloudflared binary.
+4. Download it into MJT/system/downloads/cloudflared.
+5. Mark it executable on Linux.
+6. Run cloudflared --version.
+7. Save the working path to tunnel.cloudflared.path.
+```
+
+Useful commands:
+
+```text
+.mjt system download cloudflared
+.mjt system cloudflared check
+.mjt system cloudflared show
+.mjt cloudflared install
+.mjt tunnel binary install
+```
+
+Recommended download folder:
+
+```text
+/home/container/MJT/system/downloads/cloudflared
+```
+
+---
+
+## Cloudflare Tunnel Modes
+
+MJT supports three Cloudflare Tunnel modes.
+
+### Quick Mode
+
+Used for guest preview links.
+
+```text
+cloudflared tunnel --url http://127.0.0.1:<port>
+```
+
+No token required.
+
+### Token Mode
+
+Used for named tunnels from Cloudflare Dashboard/API.
+
+```text
+cloudflared tunnel run --token <token>
+```
+
+Requires a tunnel token.
+
+### Config Mode
+
+Used for named tunnel config files and stable hostname routing.
+
+```text
+cloudflared tunnel --config <config.yml> run <tunnel-name-or-id>
+```
+
+Requires named tunnel setup.
+
+---
+
+## Gateway Router
+
+Gateway is a TCP router/forwarder. It should not be the default public web path.
+
+Recommended role:
+
+```text
+Minecraft TCP fallback
+SSH/SFTP proxy
+manual TCP route forwarding
+```
+
+Recommended defaults:
+
+```properties
+gateway.route.http.enabled=false
+gateway.route.https.enabled=false
+gateway.tcp.default=close
+```
+
+Commands:
+
+```text
+.mjt gateway show
+.mjt gateway start
+.mjt gateway stop
+.mjt gateway route add mc 127.0.0.1 25565
+.mjt gateway default mc
+```
+
+---
+
+## SSH/SFTP
+
+MJT includes embedded SSH/SFTP support.
+
+Recommended default:
+
+```properties
+ssh.host=127.0.0.1
+ssh.port=2022
+ssh.root=/home/container
+ssh.terminal.mode=basic
+```
+
+Commands:
+
+```text
+.mjt ssh show
+.mjt ssh set host 127.0.0.1
+.mjt ssh set port 2022
+.mjt ssh set user admin
+.mjt ssh set pass <password>
+.mjt ssh set root /home/container
+.mjt ssh set mode basic
+.mjt ssh set mode real-tty
+.mjt ssh start
+.mjt ssh stop
+.mjt ssh status
+```
+
+---
+
+## Minecraft Target
+
+MJT can run Minecraft as a managed target process.
+
+Commands:
 
 ```text
 .mjt minecraft start
+.mjt minecraft start <custom-command>
 .mjt minecraft stop
 .mjt minecraft kill
 .mjt minecraft status
 ```
 
-Short aliases:
+Recommended workspace:
 
 ```text
-.mjt mc start
-.mjt mc stop
-.mjt mc kill
-.mjt mc status
+/home/container/server/Minecraft
 ```
 
-Default start command:
+When Minecraft route mode is active, no-prefix input goes to the Minecraft process console.
 
-```text
-bash start-minecraft.sh
-```
+---
 
-Recommended start flow:
+## KeepAlive Bot
 
-```text
-.mjt minecraft start
-```
+MJT includes a Minecraft KeepAlive bot service.
 
-After Minecraft starts, send console commands directly:
-
-```text
-list
-say hello
-stop
-```
-
-To run shell commands while Minecraft is running:
-
-```text
-.command ls
-.command pwd
-.command curl https://example.com
-```
-
-Do not use:
-
-```text
-.command bash start-minecraft.sh
-```
-
-Use:
-
-```text
-.mjt minecraft start
-```
-
-## KeepAliveBot
-
-KeepAliveBot is an offline-mode Minecraft bot for supported hosting environments.
-
-It can join the Minecraft server as a normal player and reconnect automatically if disconnected.
-
-This feature is designed for:
-
-```text
-online-mode=false
-```
-
-Recommended server settings:
-
-```properties
-server-ip=127.0.0.1
-server-port=25565
-online-mode=false
-```
-
-Supported bot commands:
+Commands:
 
 ```text
 .mjt bot show
-.mjt bot status
 .mjt bot start
 .mjt bot stop
 .mjt bot set enabled true
@@ -257,494 +542,176 @@ Supported bot commands:
 .mjt bot set reconnect 30
 ```
 
-Basic setup:
+The bot may auto-start and auto-stop with the Minecraft target depending on config.
+
+---
+
+## Configuration Files
+
+Main config directory:
 
 ```text
-.mjt bot set enabled true
-.mjt bot set host 127.0.0.1
-.mjt bot set port 25565
-.mjt bot set username MJT_Renew
-.mjt bot set reconnect 60
-.mjt bot start
+/home/container/MJT
 ```
 
-Expected behavior:
+Important files:
 
 ```text
-BOT Connecting to 127.0.0.1:25565 as MJT_Renew
-BOT Joined Minecraft server as MJT_Renew
+MJT/core/app.properties
+MJT/services/http/http.properties
+MJT/services/http/sites/sites.properties
+MJT/services/cloudflare/tunnel/tunnel.properties
+MJT/services/cloudflare/ddns-public-ipv4/ddns.properties
+MJT/services/gateway/gateway.properties
+MJT/services/tcp/tcp-routes.properties
+MJT/services/ssh/ssh.properties
+MJT/services/minecraft/minecraft.properties
+MJT/services/bot/keepalive.properties
 ```
 
-If the bot is disconnected, it waits and reconnects automatically.
-
-If the bot username is already online, the server may return:
-
-```text
-multiplayer.disconnect.duplicate_login
-```
-
-In that case, stop the old bot process or change the bot username:
-
-```text
-.mjt bot set username MJT_Renew2
-.mjt bot stop
-.mjt bot start
-```
-
-## Improved Help Display
-
-The help output is organized into clear sections.
-
-Main help:
-
-```text
-.mjt help
-```
-
-Gateway help:
-
-```text
-.mjt gateway help
-```
-
-Version command:
-
-```text
-.mjt --version
-```
-
-## Cloudflare DDNS
-
-Mini Java Terminal can update a Cloudflare DNS A record to the current public IPv4 address of the panel host.
-
-Supported commands:
-
-```text
-.mjt cloudflare show
-.mjt cloudflare set token <token>
-.mjt cloudflare set zone <zone_id>
-.mjt cloudflare set record <record_id>
-.mjt cloudflare set name <domain>
-.mjt cloudflare set proxied false
-.mjt cloudflare set ttl 120
-.mjt cloudflare set interval 300
-.mjt cloudflare ddns once
-.mjt cloudflare ddns start
-.mjt cloudflare ddns stop
-.mjt cloudflare ddns status
-```
-
-The DNS record ID can be detected automatically when possible.
-
-## SSH / SFTP Runtime Service
-
-Mini Java Terminal includes an embedded SSH/SFTP service using Apache MINA SSHD.
-
-SSH and SFTP share the same configured port.
-
-Supported commands:
-
-```text
-.mjt ssh show
-.mjt ssh set host <host>
-.mjt ssh set port <port>
-.mjt ssh set user <username>
-.mjt ssh set pass <password>
-.mjt ssh set mode <real-tty|basic>
-.mjt ssh set root <folder>
-.mjt ssh start
-.mjt ssh stop
-.mjt ssh status
-```
-
-SFTP compatibility aliases are also supported:
-
-```text
-.mjt sftp show
-.mjt sftp set <key> <value>
-.mjt sftp start
-.mjt sftp stop
-.mjt sftp status
-```
-
-Connect using SSH:
-
-```bash
-ssh <username>@<domain-or-ip> -p <port>
-```
-
-Connect using SFTP:
-
-```bash
-sftp -P <port> <username>@<domain-or-ip>
-```
-
-Recommended local-only SSH setup:
-
-```text
-.mjt ssh stop
-.mjt ssh set host 127.0.0.1
-.mjt ssh set port 2022
-.mjt ssh set user <username>
-.mjt ssh set pass <password>
-.mjt ssh set root /home/container
-.mjt ssh start
-```
-
-## Gateway Service
-
-Mini Java Terminal includes an experimental Gateway Service.
-
-The Gateway Service is designed for controlled testing environments where one public TCP port is used as the main entry point.
-
-Gateway behavior:
-
-```text
-HTTP request  -> handled by Gateway HTTP logic
-SSH/SFTP      -> proxied to configured SSH/SFTP target
-TCP fallback  -> proxied to manually configured TCP route
-```
-
-Example:
-
-```text
-PUBLIC_IP:PUBLIC_PORT
-        │
-        ▼
-GatewayService
-        ├── HTTP
-        ├── SSH/SFTP  -> 127.0.0.1:2022
-        └── TCP route -> 127.0.0.1:<custom_port>
-```
-
-The public Gateway port is read from:
-
-```text
-SERVER_PORT
-```
-
-If `SERVER_PORT` is not available, the fallback port is:
-
-```text
-4848
-```
-
-## Gateway Commands
-
-Supported Gateway commands:
-
-```text
-.mjt gateway help
-.mjt gateway show
-.mjt gateway set <key> <value>
-.mjt gateway default <route|close>
-.mjt gateway route add <name> <host> <port>
-.mjt gateway route remove <name>
-.mjt gateway route enable <name>
-.mjt gateway route disable <name>
-```
-
-## Gateway Core Examples
-
-Show Gateway help:
-
-```text
-.mjt gateway help
-```
-
-Show Gateway config:
-
-```text
-.mjt gateway show
-```
-
-Set a Gateway config value manually:
-
-```text
-.mjt gateway set <key> <value>
-```
-
-Close TCP fallback:
-
-```text
-.mjt gateway default close
-```
-
-## HTTP Gateway Config Commands
-
-```text
-.mjt gateway set gateway.http.enabled true
-.mjt gateway set gateway.http.enabled false
-.mjt gateway set gateway.http.root /home/container/www
-.mjt gateway set gateway.http.index index.html
-.mjt gateway set gateway.http.spa true
-.mjt gateway set gateway.http.spa false
-```
-
-## SSH / SFTP Gateway Proxy Commands
-
-```text
-.mjt gateway set gateway.ssh.enabled true
-.mjt gateway set gateway.ssh.enabled false
-.mjt gateway set gateway.ssh.host 127.0.0.1
-.mjt gateway set gateway.ssh.port 2022
-```
-
-## Manual TCP Route Commands
-
-Add a Minecraft Java backend route:
-
-```text
-.mjt gateway route add mc 127.0.0.1 25565
-.mjt gateway default mc
-.mjt gateway show
-```
-
-Disable the default TCP backend:
-
-```text
-.mjt gateway default close
-```
-
-Disable a route:
-
-```text
-.mjt gateway route disable mc
-```
-
-Enable a route:
-
-```text
-.mjt gateway route enable mc
-```
-
-Remove a route:
-
-```text
-.mjt gateway route remove mc
-```
-
-Add a Velocity backend route:
-
-```text
-.mjt gateway route add velocity 127.0.0.1 25577
-.mjt gateway default velocity
-```
-
-## Gateway Configuration Example
-
-Gateway configuration is stored in the MJT config folder.
-
-Example configuration:
+Important tunnel keys:
 
 ```properties
-gateway.http.enabled=true
-gateway.http.root=/home/container/www
-gateway.http.index=index.html
-gateway.http.spa=false
-
-gateway.ssh.enabled=true
-gateway.ssh.host=127.0.0.1
-gateway.ssh.port=2022
-
-gateway.tcp.enabled=true
-gateway.tcp.default=close
-gateway.tcp.routes=
+tunnel.enabled=false
+tunnel.provider=cloudflare
+tunnel.mode=quick
+tunnel.autoStart=false
+tunnel.cloudflared.path=cloudflared
+tunnel.local.url=http://127.0.0.1:8081
+tunnel.publicUrl=
+tunnel.token=
 ```
 
-Example manual TCP route:
+Important guest keys:
 
 ```properties
-gateway.tcp.routes=mc
-gateway.tcp.default=mc
-
-gateway.tcp.mc.enabled=true
-gateway.tcp.mc.host=127.0.0.1
-gateway.tcp.mc.port=25565
+website.guest.ids=guest-a8f31
+website.guest.rootBase=/home/container/server/website/www/guest
+website.guest.nextPort=8091
+website.guest.guest-a8f31.root=/home/container/server/website/www/guest/guest-a8f31/main
+website.guest.guest-a8f31.local=http://127.0.0.1:8091
+website.guest.guest-a8f31.publicUrl=https://example.trycloudflare.com
+website.guest.guest-a8f31.status=running
+website.guest.guest-a8f31.tunnel=running
 ```
 
-To close all unknown TCP traffic:
+---
 
-```properties
-gateway.tcp.default=close
-```
+## Security Notes
 
-## Recommended Single-Port Setup
-
-When using the Gateway, the public TCP port should be owned by `GatewayService`.
-
-Example:
+Guest mode:
 
 ```text
-Gateway public:
-0.0.0.0:${SERVER_PORT}
-
-SSH/SFTP internal:
-127.0.0.1:2022
-
-Minecraft internal:
-127.0.0.1:25565
+No Cloudflare token
+No custom domain
+Temporary URL
+Suitable for preview/demo only
 ```
 
-Recommended Minecraft Gateway route:
+Named tunnel/custom domain mode:
 
 ```text
-.mjt gateway route add mc 127.0.0.1 25565
-.mjt gateway default mc
+Requires Cloudflare setup
+May require token
+Should be used for stable/public websites
+Needs domain verification in future user/workspace design
 ```
 
-External users can connect to Minecraft through the public Gateway port when the default TCP route is set to `mc`.
-
-HTTP can also be accessed through the same public port:
+Token handling rules:
 
 ```text
-http://<domain-or-ip>:<public_port>
+Do not log raw tokens
+Mask tokens in config/status output
+Store tokens only in service config
+Remove token when no longer needed
 ```
 
-## Project Structure
+---
+
+## Troubleshooting
+
+### Guest create asks for token
+
+Guest Quick Tunnel should not ask for token.
+
+Check tunnel mode:
 
 ```text
-mini-java-terminal/
-├── src/
-│   └── main/
-│       └── java/
-│           └── ...
-│               ├── Main.java
-│               ├── command/
-│               │   ├── CommandCenter.java
-│               │   └── CommandContext.java
-│               ├── services/
-│               │   ├── CloudflareDnsService.java
-│               │   ├── GatewayService.java
-│               │   └── SshServerService.java
-│               └── system/
-│                   ├── BuildInfo.java
-│                   ├── ShellRunner.java
-│                   ├── PublicIpService.java
-│                   ├── LogService.java
-│                   ├── StateStore.java
-│                   ├── CommandGuard.java
-│                   ├── TargetProcessService.java
-│                   ├── KeepAliveBotService.java
-│                   └── RuntimeConfig.java
-│
-├── scripts/
-├── dist/
-├── logs/
-├── target/
-├── pom.xml
-├── README.md
-├── WhatNew.md
-└── .gitignore
+.mjt tunnel show
+.mjt tunnel set mode quick
 ```
 
-## Folder Roles
+Then retry:
 
 ```text
-Main.java
-→ Application startup and console input loop.
-
-command/
-→ Routes user input to the correct internal command or service.
-
-services/
-→ Feature-level services such as Cloudflare DDNS, Gateway routing, and SSH/SFTP.
-
-system/
-→ Core runtime utilities such as shell execution, logging, state storage, public IP checking, command blocking, managed target processes, KeepAliveBot, and runtime configuration.
-
-scripts/
-→ Development helper scripts.
-
-target/
-→ Maven build output. This folder should not be committed.
-
-logs/
-→ Runtime logs. This folder should not be committed.
+.mjt website guest create
 ```
 
-## Requirements
+### cloudflared is missing
 
-* Java 17 or newer
-* Maven
-* A terminal or server panel that supports standard input/output
-* Public ports if direct SSH/SFTP access is needed
-* A public TCP port if Gateway mode is used
-* Minecraft server with `online-mode=false` if using KeepAliveBot
-
-## Build
-
-Build with Maven:
-
-```bash
-mvn clean package
-```
-
-The correct runnable JAR is:
+Install it:
 
 ```text
-target/server.jar
+.mjt system install cloudflared
 ```
 
-If using the auto-build script, the JAR is copied to:
+Or set path manually:
 
 ```text
-dist/server.jar
+.mjt tunnel set cloudflared /home/container/MJT/system/downloads/cloudflared/cloudflared
 ```
 
-Use `server.jar`, not the small thin JAR.
+### Guest URL stays pending
 
-The `server.jar` file is the shaded JAR and includes required dependencies.
-
-## Run
-
-```bash
-java -jar target/server.jar
-```
-
-## Runtime Files
-
-The app may generate:
+Check cloudflared output and process status:
 
 ```text
-logs/
-mjt-config/
-ssh-hostkey.ser
+.mjt system cloudflared check
+.mjt website guest show <guest-id>
+.mjt website guest restart <guest-id>
 ```
 
-## Notes
+### Website still uses /home/container/MJT/www
 
-* Gateway Service is experimental.
-* HTTP, SSH/SFTP proxying, and manual TCP fallback are part of the Gateway direction.
-* Manual TCP route support is experimental and depends on the target service.
-* Minecraft Java routing is experimental.
-* KeepAliveBot is designed for `online-mode=false` servers.
-* UDP routing is not included in this version.
-* Use `.mjt --version` to check the current runtime version.
+This is an old config path. Move content to:
 
-## Security Notice
+```text
+/home/container/server/website/www
+```
 
-Mini Java Terminal can execute system commands with the permissions of the user running the Java process.
+Then update site root:
 
-Use it only in environments where you have explicit permission.
+```text
+.mjt website set main root /home/container/server/website/www/main
+```
 
-This project is not:
+### Gateway still forwards HTTP
 
-* A hacking tool
-* A privilege escalation tool
-* A sandbox escape
-* A malware loader
-* A cryptocurrency miner
-* A bypass tool for hosting restrictions
+Disable HTTP route if using Cloudflare Tunnel for web:
 
-The built-in command guard is only a basic safety layer. Real security must still come from the operating system, container runtime, hosting panel, user permissions, and resource limits.
+```text
+.mjt gateway set gateway.route.http.enabled false
+```
 
-## Safety Notice
+---
 
-This project can execute system commands with the permissions of the user running the Java process. Use it only in environments where you have permission.
+## Roadmap
 
-It is not a hacking tool, sandbox escape, privilege escalation tool, malware loader, miner, or bypass tool.
+Planned areas:
 
-## License
+```text
+custom domain verification
+named tunnel stable mode
+per-user workspace system
+Cloudflare token isolation per workspace
+Paper/Spigot plugin adapter
+rich console dashboard
+better process monitor for guest tunnels
+```
 
-GPL-3.0-or-later
+---
+
+## Changelog
+
+See [CHANGE.md](./CHANGE.md).
+Or **Full Changelog**: https://github.com/mjt-project/Mini-Java-Terminal/compare/2.5.0...3.0.0-SNAPSHOT+1
