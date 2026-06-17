@@ -1,4 +1,4 @@
-package terminal.system;
+package main.java.mjt.system;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -334,11 +334,20 @@ public class StateStore {
         Properties properties = new Properties();
 
         properties.setProperty("app.name", "Mini Java Terminal");
-        properties.setProperty("app.version", "2.3.22");
+        properties.setProperty("app.version", BuildInfo.VERSION);
         properties.setProperty("app.first-run", "true");
         properties.setProperty("app.migrated.terminal-state", "false");
         properties.setProperty("app.command.prefix", ".");
         properties.setProperty("app.prefix.show", ".");
+
+        // KeepAlive bot defaults for offline-mode Minecraft servers
+        properties.setProperty("bot.enabled", "false");
+        properties.setProperty("bot.host", "127.0.0.1");
+        properties.setProperty("bot.port", "25565");
+        properties.setProperty("bot.username", "MJT_Renew");
+        properties.setProperty("bot.reconnectSeconds", "30");
+        properties.setProperty("bot.autoStartWithMinecraft", "true");
+        properties.setProperty("bot.autoStopWithMinecraft", "true");
         return properties;
     }
 

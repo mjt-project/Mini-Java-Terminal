@@ -1,4 +1,4 @@
-package terminal.services.gateway;
+package main.java.mjt.services.gateway;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,8 +19,8 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import terminal.system.LogService;
-import terminal.system.StateStore;
+import main.java.mjt.system.LogService;
+import main.java.mjt.system.StateStore;
 
 public class GatewayService {
     private static final String GREEN = "\u001B[32m";

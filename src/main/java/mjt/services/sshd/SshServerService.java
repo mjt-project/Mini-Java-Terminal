@@ -1,4 +1,4 @@
-package terminal.services.sshd;
+package main.java.mjt.services.sshd;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -24,10 +24,10 @@ import org.apache.sshd.server.command.Command;
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
 import org.apache.sshd.sftp.server.SftpSubsystemFactory;
 
-import terminal.command.CommandCenter;
-import terminal.system.CommandGuard;
-import terminal.system.LogService;
-import terminal.system.StateStore;
+import main.java.mjt.command.CommandCenter;
+import main.java.mjt.system.CommandGuard;
+import main.java.mjt.system.LogService;
+import main.java.mjt.system.StateStore;
 
 public class SshServerService {
     private static final String RESET = "\u001B[0m";
