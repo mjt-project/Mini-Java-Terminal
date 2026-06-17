@@ -2,6 +2,8 @@ package main.java.mjt.command;
 
 import main.java.mjt.services.cloudflare.CloudflareDnsService;
 import main.java.mjt.services.gateway.GatewayService;
+import main.java.mjt.services.http.HttpService;
+import main.java.mjt.services.https.HttpsService;
 import main.java.mjt.services.sshd.SshServerService;
 
 import main.java.mjt.system.CommandGuard;
@@ -23,6 +25,8 @@ public record CommandContext(
         CloudflareDnsService cloudflareDnsService,
         SshServerService sshServerService,
         GatewayService gatewayService,
+        HttpService httpService,
+        HttpsService httpsService,
         TargetProcessService targetProcessService,
         KeepAliveBotService keepAliveBotService
 ) {

@@ -10,6 +10,8 @@ import main.java.mjt.command.CommandCenter;
 import main.java.mjt.command.CommandContext;
 import main.java.mjt.services.cloudflare.CloudflareDnsService;
 import main.java.mjt.services.gateway.GatewayService;
+import main.java.mjt.services.http.HttpService;
+import main.java.mjt.services.https.HttpsService;
 import main.java.mjt.services.sshd.SshServerService;
 import main.java.mjt.system.BuildInfo;
 import main.java.mjt.system.CommandGuard;
@@ -45,6 +47,8 @@ public class Main {
             SshServerService sshServerService =
                     new SshServerService(stateStore, logService, commandGuard);
 
+            HttpService httpService = new HttpService(stateStore, logService);
+            HttpsService httpsService = new HttpsService(stateStore, logService);
             GatewayService gatewayService = new GatewayService(logService, stateStore);
 
             CommandContext commandContext = new CommandContext(
@@ -57,6 +61,8 @@ public class Main {
                     cloudflareDnsService,
                     sshServerService,
                     gatewayService,
+                    httpService,
+                    httpsService,
                     targetProcessService,
                     keepAliveBotService
             );
@@ -65,6 +71,10 @@ public class Main {
             sshServerService.setCommandCenter(commandCenter);
 
             printStartupMessage(logService, runtimeConfig);
+            httpService.start();
+            if (stateStore.getBoolean("https.enabled", false)) {
+                httpsService.start();
+            }
             gatewayService.start();
 
             BufferedReader console = new BufferedReader(
@@ -94,7 +104,7 @@ public class Main {
     ) throws IOException {
         System.out.println();
         System.out.println(GREEN + "==================================================" + RESET);
-        System.out.println(GREEN + " " + BuildInfo.APP_NAME + " v" + BuildInfo.VERSION + RESET);
+        System.out.println(GREEN + " " + BuildInfo.displayVersion() + "" + RESET);
         System.out.println(GREEN + "==================================================" + RESET);
 
         System.out.println(CYAN + " Status      : READY" + RESET);
@@ -104,7 +114,9 @@ public class Main {
         System.out.println();
         System.out.println(YELLOW + " Quick commands:" + RESET);
         System.out.println("  .mjt help              - Show all commands");
-        System.out.println("  .mjt --version         - Show MJT version");
+        System.out.println("  .mjt http show         - Show HTTP service config");
+        System.out.println("  .mjt https show        - Show HTTPS service config");
+        System.out.println("  .mjt gateway show      - Show Gateway router config");
         System.out.println("  .mjt minecraft start   - Start Minecraft managed target");
         System.out.println("  .mjt bot show          - Show KeepAlive bot status");
         System.out.println("  .mjt bot start         - Start KeepAlive bot");
@@ -113,7 +125,7 @@ public class Main {
         System.out.println("  .mjt exit              - Stop Mini Java Terminal");
         System.out.println();
 
-        logService.write("[START] " + BuildInfo.APP_NAME + " v" + BuildInfo.VERSION + "\n");
+        logService.write("[START] " + BuildInfo.displayVersion() + "\n");
         logService.write("[CURRENT DIR] " + runtimeConfig.getCurrentDir() + "\n");
     }
 }

@@ -8,14 +8,9 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -41,15 +36,20 @@ public class GatewayService {
         this.stateStore = stateStore;
     }
 
-    public void start() {
+    public synchronized void start() {
         if (gatewayRunning) {
             System.out.println(YELLOW + "[Gateway] Already running." + RESET);
             return;
         }
 
+        if (!stateStore.getBoolean("gateway.enabled", true)) {
+            System.out.println(YELLOW + "[Gateway] Disabled. Use: .mjt gateway set gateway.enabled true" + RESET);
+            return;
+        }
+
         String publicTcpHost = getPublicTcpHost();
         int publicTcpPort = getPublicTcpPort();
-            
+
         try {
             publicServerSocket = new ServerSocket();
             publicServerSocket.setReuseAddress(true);
@@ -75,7 +75,7 @@ public class GatewayService {
         }
     }
 
-    public void stop() {
+    public synchronized void stop() {
         gatewayRunning = false;
 
         try {
@@ -86,6 +86,22 @@ public class GatewayService {
         }
 
         System.out.println(YELLOW + "[Gateway] Stopped." + RESET);
+    }
+
+    public void status() {
+        System.out.println(CYAN + "[GATEWAY STATUS]" + RESET);
+        System.out.println("Running      : " + gatewayRunning);
+        System.out.println("Public host  : " + getPublicTcpHost());
+        System.out.println("Public port  : " + getPublicTcpPort());
+        System.out.println("HTTP route   : "
+                + stateStore.get("gateway.route.http.host", stateStore.get("http.host", "127.0.0.1"))
+                + ":"
+                + stateStore.get("gateway.route.http.port", stateStore.get("http.port", "8080")));
+        System.out.println("HTTPS route  : "
+                + stateStore.get("gateway.route.https.host", stateStore.get("https.host", "127.0.0.1"))
+                + ":"
+                + stateStore.get("gateway.route.https.port", stateStore.get("https.port", "8443")));
+        System.out.println("TCP default  : " + stateStore.get("gateway.tcp.default", "close"));
     }
 
     private void acceptLoop() {
@@ -113,16 +129,15 @@ public class GatewayService {
             clientSocket.setSoTimeout(1500);
 
             InputStream clientInput = clientSocket.getInputStream();
-            OutputStream clientOutput = clientSocket.getOutputStream();
 
-            byte[] firstBytes = new byte[64];
+            byte[] firstBytes = new byte[256];
             int firstLength;
 
             try {
                 firstLength = clientInput.read(firstBytes);
 
             } catch (SocketTimeoutException timeout) {
-                // SSH client sometimes waits for server to send banner first.
+                // SSH clients can wait for server banner first.
                 routeToSshService(clientSocket, new byte[0], 0);
                 return;
             }
@@ -135,8 +150,12 @@ public class GatewayService {
             String firstText = new String(firstBytes, 0, firstLength, StandardCharsets.ISO_8859_1);
 
             if (isHttpRequest(firstText)) {
-                handleHttpService(firstText, clientInput, clientOutput);
-                closeQuietly(clientSocket);
+                routeToHttpService(clientSocket, firstBytes, firstLength);
+                return;
+            }
+
+            if (isTlsClientHello(firstBytes, firstLength)) {
+                routeToHttpsService(clientSocket, firstBytes, firstLength);
                 return;
             }
 
@@ -158,7 +177,7 @@ public class GatewayService {
     }
 
     private boolean isHttpRequest(String firstText) {
-        if (!getConfigBoolean("gateway.http.enabled", true)) {
+        if (!stateStore.getBoolean("gateway.route.http.enabled", true)) {
             return false;
         }
 
@@ -168,235 +187,65 @@ public class GatewayService {
                 || firstText.startsWith("OPTIONS ")
                 || firstText.startsWith("PUT ")
                 || firstText.startsWith("DELETE ")
-                || firstText.startsWith("PATCH ");
+                || firstText.startsWith("PATCH ")
+                || firstText.startsWith("PRI * HTTP/2.0");
+    }
+
+    private boolean isTlsClientHello(byte[] firstBytes, int firstLength) {
+        if (!stateStore.getBoolean("gateway.route.https.enabled", true)) {
+            return false;
+        }
+
+        if (firstLength < 3) {
+            return false;
+        }
+
+        int contentType = firstBytes[0] & 0xFF;
+        int majorVersion = firstBytes[1] & 0xFF;
+
+        // TLS ClientHello starts with record type 0x16 and version 0x03xx.
+        return contentType == 0x16 && majorVersion == 0x03;
     }
 
     private boolean isSshRequest(String firstText) {
-        if (!getConfigBoolean("gateway.ssh.enabled", true)) {
+        if (!stateStore.getBoolean("gateway.ssh.enabled", true)) {
             return false;
         }
 
         return firstText.startsWith("SSH-");
     }
 
-    private void handleHttpService(
-            String firstText,
-            InputStream clientInput,
-            OutputStream clientOutput
-    ) throws IOException {
-        String requestHeader = readHttpHeader(firstText, clientInput);
-        String requestLine = requestHeader.split("\\R", 2)[0];  
+    private void routeToHttpService(Socket clientSocket, byte[] firstBytes, int firstLength) {
+        String httpHost = stateStore.get("gateway.route.http.host", stateStore.get("http.host", "127.0.0.1")).trim();
+        int httpPort = stateStore.getInt("gateway.route.http.port", stateStore.getInt("http.port", 8080));
 
-        String[] parts = requestLine.split("\\s+"); 
-
-        if (parts.length < 2) {
-            sendHttpText(clientOutput, 400, "Bad Request", "Bad Request");
-            return;
-        }   
-
-        String method = parts[0].trim().toUpperCase(Locale.ROOT);
-        String requestPath = parts[1].trim();   
-
-        if (!method.equals("GET") && !method.equals("HEAD")) {
-            sendHttpText(clientOutput, 405, "Method Not Allowed", "Method Not Allowed");
-            return;
-        }   
-
-        Path webRoot = Paths.get(
-                getConfigString("gateway.http.root", "www")
-        ).toAbsolutePath().normalize(); 
-
-        String indexFileName = getConfigString("gateway.http.index", "index.html");
-        boolean spaFallback = getConfigBoolean("gateway.http.spa", false);  
-
-        Path targetFile = resolveHttpFile(webRoot, requestPath, indexFileName); 
-
-        if (targetFile == null) {
-            sendHttpText(clientOutput, 403, "Forbidden", "Forbidden");
-            return;
-        }   
-
-        if (!Files.exists(targetFile) || !Files.isRegularFile(targetFile)) {
-            if (spaFallback) {
-                Path fallbackFile = webRoot.resolve(indexFileName).normalize(); 
-
-                if (fallbackFile.startsWith(webRoot)
-                        && Files.exists(fallbackFile)
-                        && Files.isRegularFile(fallbackFile)) {
-                    targetFile = fallbackFile;
-                } else {
-                    sendHttpText(clientOutput, 404, "Not Found", "Not Found");
-                    return;
-                }
-            } else {
-                sendHttpText(clientOutput, 404, "Not Found", "Not Found");
-                return;
-            }
-        }   
-
-        byte[] fileBytes = Files.readAllBytes(targetFile);
-        String contentType = guessContentType(targetFile);  
-
-        String header = ""
-                + "HTTP/1.1 200 OK\r\n"
-                + "Content-Type: " + contentType + "\r\n"
-                + "Content-Length: " + fileBytes.length + "\r\n"
-                + "Connection: close\r\n"
-                + "\r\n";   
-
-        clientOutput.write(header.getBytes(StandardCharsets.UTF_8));    
-
-        if (!method.equals("HEAD")) {
-            clientOutput.write(fileBytes);
-        }   
-
-        clientOutput.flush();   
-
-        System.out.println(CYAN + "[HTTP] " + requestLine + " -> " + targetFile + RESET);
-        logService.write("[HTTP] " + requestLine + " -> " + targetFile + "\n");
-    }   
-
-        private String readHttpHeader(String firstText, InputStream clientInput) throws IOException {   
-        StringBuilder header = new StringBuilder(firstText);
-
-        long deadline = System.currentTimeMillis() + 1500;
-
-        while (!header.toString().contains("\r\n\r\n")
-                && !header.toString().contains("\n\n")
-                && System.currentTimeMillis() < deadline) {
-
-            if (clientInput.available() <= 0) {
-                break;
-            }
-
-            byte[] buffer = new byte[Math.min(1024, clientInput.available())];
-            int read = clientInput.read(buffer);
-
-            if (read <= 0) {
-                break;
-            }
-
-            header.append(new String(buffer, 0, read, StandardCharsets.ISO_8859_1));
-        }
-
-        return header.toString();
+        proxyTcp(
+                clientSocket,
+                firstBytes,
+                firstLength,
+                httpHost,
+                httpPort,
+                "HTTP"
+        );
     }
 
-        private Path resolveHttpFile(Path webRoot, String requestPath, String indexFileName) {  
-        try {
-            String cleanPath = requestPath;
+    private void routeToHttpsService(Socket clientSocket, byte[] firstBytes, int firstLength) {
+        String httpsHost = stateStore.get("gateway.route.https.host", stateStore.get("https.host", "127.0.0.1")).trim();
+        int httpsPort = stateStore.getInt("gateway.route.https.port", stateStore.getInt("https.port", 8443));
 
-            int queryIndex = cleanPath.indexOf('?');
-            if (queryIndex >= 0) {
-                cleanPath = cleanPath.substring(0, queryIndex);
-            }
-
-            int hashIndex = cleanPath.indexOf('#');
-            if (hashIndex >= 0) {
-                cleanPath = cleanPath.substring(0, hashIndex);
-            }
-
-            cleanPath = URLDecoder.decode(cleanPath, StandardCharsets.UTF_8);
-
-            if (cleanPath.isBlank() || cleanPath.equals("/")) {
-                cleanPath = "/" + indexFileName;
-            }
-
-            if (cleanPath.endsWith("/")) {
-                cleanPath = cleanPath + indexFileName;
-            }
-
-            while (cleanPath.startsWith("/")) {
-                cleanPath = cleanPath.substring(1);
-            }
-
-            Path target = webRoot.resolve(cleanPath).normalize();
-
-            // Block path traversal like ../../...
-            if (!target.startsWith(webRoot)) {
-                return null;
-            }
-
-            return target;
-
-        } catch (Exception e) {
-            return null;
-        }
+        proxyTcp(
+                clientSocket,
+                firstBytes,
+                firstLength,
+                httpsHost,
+                httpsPort,
+                "HTTPS"
+        );
     }
-
-        private void sendHttpText(  
-            OutputStream output,
-            int statusCode,
-            String statusText,
-            String body
-    ) throws IOException {
-        byte[] bodyBytes = body.getBytes(StandardCharsets.UTF_8);
-
-        String header = ""
-                + "HTTP/1.1 " + statusCode + " " + statusText + "\r\n"
-                + "Content-Type: text/plain; charset=utf-8\r\n"
-                + "Content-Length: " + bodyBytes.length + "\r\n"
-                + "Connection: close\r\n"
-                + "\r\n";
-
-        output.write(header.getBytes(StandardCharsets.UTF_8));
-        output.write(bodyBytes);
-        output.flush();
-    }
-
-        private String guessContentType(Path file) {
-            String name = file.getFileName().toString().toLowerCase(Locale.ROOT);   
-
-            if (name.endsWith(".html") || name.endsWith(".htm")) {
-                return "text/html; charset=utf-8";
-            }   
-
-            if (name.endsWith(".css")) {
-                return "text/css; charset=utf-8";
-            }   
-
-            if (name.endsWith(".js")) {
-                return "application/javascript; charset=utf-8";
-            }   
-
-            if (name.endsWith(".json")) {
-                return "application/json; charset=utf-8";
-            }   
-
-            if (name.endsWith(".png")) {
-                return "image/png";
-            }   
-
-            if (name.endsWith(".jpg") || name.endsWith(".jpeg")) {
-                return "image/jpeg";
-            }   
-
-            if (name.endsWith(".gif")) {
-                return "image/gif";
-            }   
-
-            if (name.endsWith(".svg")) {
-                return "image/svg+xml";
-            }   
-
-            if (name.endsWith(".ico")) {
-                return "image/x-icon";
-            }   
-
-            if (name.endsWith(".webp")) {
-                return "image/webp";
-            }   
-
-            if (name.endsWith(".txt")) {
-                return "text/plain; charset=utf-8";
-            }   
-
-            return "application/octet-stream";
-        }
 
     private void routeToSshService(Socket clientSocket, byte[] firstBytes, int firstLength) {
-        String sshHost = getConfigString("gateway.ssh.host", "127.0.0.1");
-        int sshPort = getConfigInt("gateway.ssh.port", 2022);
+        String sshHost = stateStore.get("gateway.ssh.host", "127.0.0.1").trim();
+        int sshPort = stateStore.getInt("gateway.ssh.port", 2022);
 
         proxyTcp(
                 clientSocket,
@@ -409,12 +258,12 @@ public class GatewayService {
     }
 
     private void routeToManualTcpService(Socket clientSocket, byte[] firstBytes, int firstLength) {
-        if (!getConfigBoolean("gateway.tcp.enabled", true)) {
+        if (!stateStore.getBoolean("gateway.tcp.enabled", true)) {
             sendUnknownAndClose(clientSocket, firstBytes, firstLength);
             return;
         }
 
-        String defaultRouteName = getConfigString("gateway.tcp.default", "close");
+        String defaultRouteName = stateStore.get("gateway.tcp.default", "close").trim();
 
         if (defaultRouteName.isBlank() || defaultRouteName.equalsIgnoreCase("close")) {
             sendUnknownAndClose(clientSocket, firstBytes, firstLength);
@@ -448,9 +297,9 @@ public class GatewayService {
             return null;
         }
 
-        boolean enabled = getConfigBoolean("gateway.tcp." + cleanName + ".enabled", false);
-        String host = getConfigString("gateway.tcp." + cleanName + ".host", "127.0.0.1");
-        int port = getConfigInt("gateway.tcp." + cleanName + ".port", 0);
+        boolean enabled = stateStore.getBoolean("gateway.tcp." + cleanName + ".enabled", false);
+        String host = stateStore.get("gateway.tcp." + cleanName + ".host", "127.0.0.1").trim();
+        int port = stateStore.getInt("gateway.tcp." + cleanName + ".port", 0);
 
         if (port <= 0 || port > 65535) {
             return null;
@@ -462,7 +311,7 @@ public class GatewayService {
     private List<TcpRoute> readAllManualTcpRoutes() {
         List<TcpRoute> routes = new ArrayList<>();
 
-        String routeNames = getConfigString("gateway.tcp.routes", "");
+        String routeNames = stateStore.get("gateway.tcp.routes", "").trim();
 
         if (routeNames.isBlank()) {
             return routes;
@@ -528,10 +377,14 @@ public class GatewayService {
         } catch (Exception e) {
             closeQuietly(backendSocket);
 
-            sendBackendNotReadyAndClose(
-                    clientSocket,
-                    routeLabel + " backend is not ready: " + e.getMessage()
-            );
+            if (routeLabel.equals("HTTP")) {
+                sendHttpGatewayErrorAndClose(clientSocket, 502, routeLabel + " backend is not ready: " + e.getMessage());
+            } else {
+                sendBackendNotReadyAndClose(
+                        clientSocket,
+                        routeLabel + " backend is not ready: " + e.getMessage()
+                );
+            }
 
             try {
                 logService.write("[GATEWAY PROXY ERROR] " + routeLabel + " - " + e.getMessage() + "\n");
@@ -551,12 +404,6 @@ public class GatewayService {
             while ((read = input.read(buffer)) != -1) {
                 output.write(buffer, 0, read);
                 output.flush();
-            }
-
-        } catch (SocketTimeoutException e) {
-            try {
-                logService.write("[GATEWAY PIPE TIMEOUT] " + e.getMessage() + "\n");
-            } catch (IOException ignored) {
             }
 
         } catch (IOException e) {
@@ -592,6 +439,23 @@ public class GatewayService {
         }
     }
 
+    private void sendHttpGatewayErrorAndClose(Socket clientSocket, int statusCode, String message) {
+        try {
+            byte[] body = (message + "\n").getBytes(StandardCharsets.UTF_8);
+            String response = "HTTP/1.1 " + statusCode + " Bad Gateway\r\n"
+                    + "Content-Type: text/plain; charset=utf-8\r\n"
+                    + "Content-Length: " + body.length + "\r\n"
+                    + "Connection: close\r\n"
+                    + "\r\n";
+            clientSocket.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
+            clientSocket.getOutputStream().write(body);
+            clientSocket.getOutputStream().flush();
+        } catch (IOException ignored) {
+        } finally {
+            closeQuietly(clientSocket);
+        }
+    }
+
     private void sendBackendNotReadyAndClose(Socket clientSocket, String message) {
         try {
             String response = message + "\r\n";
@@ -607,31 +471,39 @@ public class GatewayService {
     private void printGatewayStartup(String publicTcpHost, int publicTcpPort) throws IOException {
         reloadStateConfigQuietly();
 
-        boolean httpEnabled = getConfigBoolean("gateway.http.enabled", true);
-        boolean sshEnabled = getConfigBoolean("gateway.ssh.enabled", true);
-        boolean tcpEnabled = getConfigBoolean("gateway.tcp.enabled", true);
+        boolean httpRouteEnabled = stateStore.getBoolean("gateway.route.http.enabled", true);
+        boolean httpsRouteEnabled = stateStore.getBoolean("gateway.route.https.enabled", true);
+        boolean sshEnabled = stateStore.getBoolean("gateway.ssh.enabled", true);
+        boolean tcpEnabled = stateStore.getBoolean("gateway.tcp.enabled", true);
 
-        String httpRoot = getConfigString("gateway.http.root", "www");
-        String httpIndex = getConfigString("gateway.http.index", "index.html");
-        boolean httpSpa = getConfigBoolean("gateway.http.spa", false);
+        String httpHost = stateStore.get("gateway.route.http.host", stateStore.get("http.host", "127.0.0.1"));
+        int httpPort = stateStore.getInt("gateway.route.http.port", stateStore.getInt("http.port", 8080));
 
-        String sshHost = getConfigString("gateway.ssh.host", "127.0.0.1");
-        int sshPort = getConfigInt("gateway.ssh.port", 2022);
+        String httpsHost = stateStore.get("gateway.route.https.host", stateStore.get("https.host", "127.0.0.1"));
+        int httpsPort = stateStore.getInt("gateway.route.https.port", stateStore.getInt("https.port", 8443));
 
-        String tcpDefault = getConfigString("gateway.tcp.default", "close");
+        String sshHost = stateStore.get("gateway.ssh.host", "127.0.0.1");
+        int sshPort = stateStore.getInt("gateway.ssh.port", 2022);
+
+        String tcpDefault = stateStore.get("gateway.tcp.default", "close");
 
         System.out.println(GREEN + "==================================================" + RESET);
-        System.out.println(GREEN + " Gateway Service" + RESET);
+        System.out.println(GREEN + " Gateway Router" + RESET);
         System.out.println(GREEN + "==================================================" + RESET);
 
         System.out.println(CYAN + " Public TCP  : " + publicTcpHost + ":" + publicTcpPort + RESET);
 
         System.out.println();
-        System.out.println(YELLOW + " HTTP Static Files" + RESET);
-        System.out.println("  Status     : " + formatStatus(httpEnabled));
-        System.out.println("  Root       : " + httpRoot);
-        System.out.println("  Index      : " + httpIndex);
-        System.out.println("  SPA mode   : " + formatStatus(httpSpa));
+        System.out.println(YELLOW + " HTTP Route" + RESET);
+        System.out.println("  Status     : " + formatStatus(httpRouteEnabled));
+        System.out.println("  Target     : " + httpHost + ":" + httpPort);
+        System.out.println("  Role       : forward HTTP traffic only, does not serve website files");
+
+        System.out.println();
+        System.out.println(YELLOW + " HTTPS Route" + RESET);
+        System.out.println("  Status     : " + formatStatus(httpsRouteEnabled));
+        System.out.println("  Target     : " + httpsHost + ":" + httpsPort);
+        System.out.println("  Role       : forward TLS/HTTPS traffic only, does not terminate TLS");
 
         System.out.println();
         System.out.println(YELLOW + " SSH / SFTP Proxy" + RESET);
@@ -666,44 +538,44 @@ public class GatewayService {
     }
 
     private String getPublicTcpHost() {
-        String host = getConfigString("gateway.public.host", "127.0.0.1");
+        String host = stateStore.get("gateway.public.host", "0.0.0.0").trim();
 
         if (host.isBlank()) {
-            return "127.0.0.1";
+            return "0.0.0.0";
         }
 
         return host;
     }
 
     private int getPublicTcpPort() {
-        String configured = getConfigString("gateway.public.port", "8080");
-    
+        String configured = stateStore.get("gateway.public.port", "auto").trim();
+
         if (!configured.equalsIgnoreCase("auto")) {
             try {
                 int port = Integer.parseInt(configured.trim());
-            
+
                 if (port > 0 && port <= 65535) {
                     return port;
                 }
-            
+
             } catch (Exception ignored) {
             }
-        
+
             return 4848;
         }
-    
+
         String value = System.getenv().getOrDefault("SERVER_PORT", "8080");
-    
+
         try {
             int port = Integer.parseInt(value.trim());
-        
+
             if (port > 0 && port <= 65535) {
                 return port;
             }
-        
+
         } catch (Exception ignored) {
         }
-    
+
         return 4848;
     }
 
@@ -716,18 +588,6 @@ public class GatewayService {
             } catch (IOException ignored) {
             }
         }
-    }
-
-    private String getConfigString(String key, String defaultValue) {
-        return stateStore.get(key, defaultValue).trim();
-    }
-
-    private int getConfigInt(String key, int defaultValue) {
-        return stateStore.getInt(key, defaultValue);
-    }
-
-    private boolean getConfigBoolean(String key, boolean defaultValue) {
-        return stateStore.getBoolean(key, defaultValue);
     }
 
     private String safeThreadName(String value) {
@@ -760,6 +620,10 @@ public class GatewayService {
         }
     }
 
+    private String formatStatus(boolean enabled) {
+        return enabled ? "ON" : "OFF";
+    }
+
     private static class TcpRoute {
         private final String name;
         private final boolean enabled;
@@ -772,10 +636,5 @@ public class GatewayService {
             this.host = host;
             this.port = port;
         }
-    }
-
-
-    private String formatStatus(boolean enabled) {
-        return enabled ? "ON" : "OFF";
     }
 }

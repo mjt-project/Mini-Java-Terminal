@@ -53,6 +53,7 @@ public class StateStore {
 
         createReadmeIfMissing();
         migrateLegacyTerminalStateIfNeeded();
+        migrateLegacyGatewayHttpConfigIfNeeded();
     }
 
     public synchronized void save() throws IOException {
@@ -236,10 +237,15 @@ public class StateStore {
                     basic    = fallback mode
 
                 gateway.properties
-                  - Gateway public TCP and manual TCP route settings.
+                  - Gateway router public TCP and manual TCP route settings.
+                  - Gateway forwards HTTP traffic to the separate HTTP service.
 
                 web.properties
-                  - HTTP static file service settings.
+                  - HTTP and HTTPS service settings.
+                  - http.host defaults to 127.0.0.1.
+                  - http.port defaults to 8080.
+                  - https.host defaults to 127.0.0.1.
+                  - https.port defaults to 8443.
 
                 cloudflare.properties
                   - Cloudflare DDNS settings.
@@ -288,6 +294,53 @@ public class StateStore {
         set("app.legacy-state-file", legacyFile.toString());
     }
 
+
+    private void migrateLegacyGatewayHttpConfigIfNeeded() throws IOException {
+        if (getBoolean("app.migrated.gateway-http-split", false)) {
+            return;
+        }
+
+        copyLegacyKeyIfPresent("gateway.http.enabled", "http.enabled");
+        copyLegacyKeyIfPresent("gateway.http.root", "http.root");
+        copyLegacyKeyIfPresent("gateway.http.index", "http.index");
+        copyLegacyKeyIfPresent("gateway.http.spa", "http.spa");
+
+        // Keep Gateway as router only. HTTP detection forwards to the local HTTP service.
+        if (!has("gateway.route.http.enabled")) {
+            set("gateway.route.http.enabled", "true");
+        }
+        if (!has("gateway.route.http.host")) {
+            set("gateway.route.http.host", get("http.host", "127.0.0.1"));
+        }
+        if (!has("gateway.route.http.port")) {
+            set("gateway.route.http.port", get("http.port", "8080"));
+        }
+
+        if (!has("gateway.route.https.enabled")) {
+            set("gateway.route.https.enabled", "true");
+        }
+        if (!has("gateway.route.https.host")) {
+            set("gateway.route.https.host", get("https.host", "127.0.0.1"));
+        }
+        if (!has("gateway.route.https.port")) {
+            set("gateway.route.https.port", get("https.port", "8443"));
+        }
+
+        set("app.migrated.gateway-http-split", "true");
+    }
+
+    private void copyLegacyKeyIfPresent(String oldKey, String newKey) throws IOException {
+        String oldValue = get(oldKey, "");
+
+        if (oldValue == null || oldValue.isBlank()) {
+            return;
+        }
+
+        if (!has(newKey) || get(newKey, "").isBlank()) {
+            set(newKey, oldValue);
+        }
+    }
+
     private String fileNameForKey(String key) {
         String lower = key.toLowerCase().trim();
 
@@ -299,7 +352,12 @@ public class StateStore {
             return SSH_FILE;
         }
 
-        if (lower.startsWith("gateway.http.") || lower.startsWith("web.")) {
+        if (lower.startsWith("http.") || lower.startsWith("https.") || lower.startsWith("web.")) {
+            return WEB_FILE;
+        }
+
+        // Legacy v2.4.x key compatibility only. New HTTP keys use http.*
+        if (lower.startsWith("gateway.http.")) {
             return WEB_FILE;
         }
 
@@ -373,8 +431,16 @@ public class StateStore {
         Properties properties = new Properties();
 
         properties.setProperty("gateway.enabled", "true");
-        properties.setProperty("gateway.public.host", "127.0.0.1");
+        properties.setProperty("gateway.public.host", "0.0.0.0");
         properties.setProperty("gateway.public.port", "auto");
+
+        // Gateway only routes/forwards HTTP/HTTPS to the separate local web services.
+        properties.setProperty("gateway.route.http.enabled", "true");
+        properties.setProperty("gateway.route.http.host", "127.0.0.1");
+        properties.setProperty("gateway.route.http.port", "8080");
+        properties.setProperty("gateway.route.https.enabled", "true");
+        properties.setProperty("gateway.route.https.host", "127.0.0.1");
+        properties.setProperty("gateway.route.https.port", "8443");
 
         properties.setProperty("gateway.ssh.enabled", "true");
         properties.setProperty("gateway.ssh.host", "127.0.0.1");
@@ -390,10 +456,24 @@ public class StateStore {
     private Properties defaultWebConfig() {
         Properties properties = new Properties();
 
-        properties.setProperty("gateway.http.enabled", "true");
-        properties.setProperty("gateway.http.root", "/home/container/www");
-        properties.setProperty("gateway.http.index", "index.html");
-        properties.setProperty("gateway.http.spa", "false");
+        properties.setProperty("http.enabled", "true");
+        properties.setProperty("http.host", "127.0.0.1");
+        properties.setProperty("http.port", "8080");
+        properties.setProperty("http.root", "/home/container/www");
+        properties.setProperty("http.index", "index.html");
+        properties.setProperty("http.spa", "false");
+        properties.setProperty("http.autoHttps", "true");
+
+        properties.setProperty("https.enabled", "false");
+        properties.setProperty("https.host", "127.0.0.1");
+        properties.setProperty("https.port", "8443");
+        properties.setProperty("https.root", "/home/container/www");
+        properties.setProperty("https.index", "index.html");
+        properties.setProperty("https.spa", "false");
+        properties.setProperty("https.keystore", "mjt-config/https.p12");
+        properties.setProperty("https.keystore.password", "change-me");
+        properties.setProperty("https.key.alias", "mjt");
+        properties.setProperty("https.cert.cn", "localhost");
 
         return properties;
     }
