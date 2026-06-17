@@ -61,7 +61,7 @@ public class HttpsService {
 
         String host = stateStore.get("https.host", "127.0.0.1").trim();
         int port = stateStore.getInt("https.port", 8443);
-        String keyStorePath = stateStore.get("https.keystore", "mjt-config/https.p12").trim();
+        String keyStorePath = stateStore.get("https.keystore", "MJT/services/https/https.p12").trim();
         String keyStorePassword = stateStore.get("https.keystore.password", "change-me");
 
         if (host.isBlank()) {
@@ -140,7 +140,7 @@ public class HttpsService {
         System.out.println("Root       : " + getRoot());
         System.out.println("Index      : " + getIndexFileName());
         System.out.println("SPA        : " + stateStore.get("https.spa", stateStore.get("http.spa", "false")));
-        System.out.println("Keystore   : " + stateStore.get("https.keystore", "mjt-config/https.p12"));
+        System.out.println("Keystore   : " + stateStore.get("https.keystore", "MJT/services/https/https.p12"));
         System.out.println("Password   : " + stateStore.maskSecret(stateStore.get("https.keystore.password", "")));
     }
 
@@ -170,7 +170,7 @@ public class HttpsService {
     }
 
     public void generateSelfSignedCertificate() {
-        String keyStorePath = stateStore.get("https.keystore", "mjt-config/https.p12").trim();
+        String keyStorePath = stateStore.get("https.keystore", "MJT/services/https/https.p12").trim();
         String keyStorePassword = stateStore.get("https.keystore.password", "change-me").trim();
         String alias = stateStore.get("https.key.alias", "mjt").trim();
         String commonName = stateStore.get("https.cert.cn", "localhost").trim();
@@ -476,7 +476,7 @@ public class HttpsService {
         }
 
         if (realKey.equals("https.keystore") && clean.isBlank()) {
-            return "mjt-config/https.p12";
+            return "MJT/services/https/https.p12";
         }
 
         if (realKey.equals("https.keystore.password") && clean.isBlank()) {
@@ -516,7 +516,7 @@ public class HttpsService {
     }
 
     private String getRoot() {
-        return stateStore.get("https.root", stateStore.get("http.root", "/home/container/www")).trim();
+        return stateStore.get("https.root", stateStore.get("http.root", "/home/container/server/website/www/main")).trim();
     }
 
     private String getIndexFileName() {
@@ -543,8 +543,8 @@ public class HttpsService {
         System.out.println(".mjt https set enabled true");
         System.out.println(".mjt https set host 127.0.0.1");
         System.out.println(".mjt https set port 8443");
-        System.out.println(".mjt https set root /home/container/www");
-        System.out.println(".mjt https set keystore /home/container/mjt-config/https.p12");
+        System.out.println(".mjt https set root /home/container/server/website/www/main");
+        System.out.println(".mjt https set keystore /home/container/MJT/services/https/https.p12");
         System.out.println(".mjt https set password change-me");
         System.out.println(".mjt https set cn localhost");
         System.out.println(".mjt https cert self-signed");

@@ -1,0 +1,184 @@
+package main.java.mjt.help;
+
+public final class HelpCenter {
+    private static final String RESET = "\u001B[0m";
+    private static final String GREEN = "\u001B[32m";
+    private static final String CYAN = "\u001B[36m";
+    private static final String YELLOW = "\u001B[33m";
+    private static final String RED = "\u001B[31m";
+
+    private HelpCenter() {
+    }
+
+    public static void printIndex() {
+        title("Mini Java Terminal Help Index");
+        section("Core");
+        cmd(".mjt help system", "Runtime, cd, pwd, timeout, version");
+        cmd(".mjt help shell", "Safe shell routing and .command usage");
+        cmd(".mjt help download", "Install required binaries such as cloudflared");
+        cmd(".mjt help minecraft", "Managed Minecraft target commands");
+
+        section("Website");
+        cmd(".mjt help website", "Local website / HTTP site manager");
+        cmd(".mjt help guest", "Guest website + Cloudflare Quick Tunnel");
+        cmd(".mjt help tunnel", "cloudflared binary, quick/token/config modes");
+
+        section("Services");
+        cmd(".mjt help gateway", "TCP gateway / Minecraft fallback / SSH proxy");
+        cmd(".mjt help ssh", "SSH/SFTP server");
+        cmd(".mjt help bot", "KeepAlive bot");
+        cmd(".mjt help cloudflare-ddns", "Cloudflare DNS update service");
+
+        System.out.println();
+        System.out.println(YELLOW + "Tip:" + RESET + " Detailed aliases still work: .mjt website help, .mjt tunnel help, .mjt gateway help");
+        System.out.println();
+    }
+
+    public static void printTopic(String topic) {
+        String clean = topic == null ? "" : topic.trim().toLowerCase();
+
+        switch (clean) {
+            case "system":
+            case "core":
+                title("System Help");
+                cmd(".mjt --version", "Show MJT version");
+                cmd(".mjt mode", "Show route mode and target status");
+                cmd(".mjt pwd", "Show current directory");
+                cmd(".mjt cd <folder>", "Change MJT working directory");
+                cmd(".mjt public-ip", "Check public IPv4");
+                cmd(".mjt timeout <seconds>", "Set shell command timeout, 0 = unlimited");
+                return;
+
+            case "download":
+            case "installer":
+            case "cloudflared-install":
+                title("System Download Help");
+                System.out.println("MJT can download helper binaries into separate task folders under MJT/system/downloads/.");
+                cmd(".mjt system install cloudflared", "Auto-detect OS/CPU, download cloudflared, chmod +x, verify --version");
+                cmd(".mjt system cloudflared check", "Check configured/cloudflared binary with --version");
+                cmd(".mjt system cloudflared show", "Show download path, last asset, version, status");
+                cmd(".mjt tunnel set cloudflared <path>", "Manually set cloudflared binary path");
+                return;
+
+            case "shell":
+            case "command":
+                title("Shell Help");
+                cmd(".command <shell-command>", "Run Linux shell command explicitly");
+                cmd(".command terminal", "Switch no-prefix input back to terminal mode");
+                cmd(".command minecraft", "Route no-prefix input to running Minecraft target");
+                System.out.println(YELLOW + "Note:" + RESET + " Panel console blocks su/sudo/nano/vim/top/htop because they need a real TTY.");
+                return;
+
+            case "website":
+            case "http":
+                title("Website Help");
+                cmd(".mjt website list", "List local websites");
+                cmd(".mjt website show <name>", "Show website config");
+                cmd(".mjt website add <name> <host> <port> <root>", "Add local website");
+                cmd(".mjt website start <name|all>", "Start website");
+                cmd(".mjt website stop <name|all>", "Stop website");
+                cmd(".mjt website restart <name|all>", "Restart website");
+                cmd(".mjt website set <name> <key> <value>", "Set enabled/host/port/root/index/spa");
+                return;
+
+            case "guest":
+            case "quick":
+            case "quick-tunnel":
+                title("Guest Quick Tunnel Help");
+                System.out.println("Guest websites use Cloudflare Quick Tunnel and DO NOT need a token.");
+                cmd(".mjt website guest create", "Create guest site + start cloudflared quick tunnel");
+                cmd(".mjt website guest list", "List guest sites");
+                cmd(".mjt website guest show <id>", "Show local/public URL");
+                cmd(".mjt website guest stop <id>", "Stop HTTP site and quick tunnel");
+                cmd(".mjt website guest restart <id>", "Restart guest site and get a new trycloudflare URL");
+                cmd(".mjt website guest remove <id>", "Remove guest config, keep files for safety");
+                return;
+
+            case "tunnel":
+            case "cloudflared":
+                title("Tunnel Help");
+                cmd(".mjt tunnel show", "Show tunnel status/config");
+                cmd(".mjt system install cloudflared", "Download cloudflared automatically if missing");
+                cmd(".mjt tunnel set cloudflared <path>", "Set cloudflared binary path manually");
+                cmd(".mjt tunnel set mode quick", "Manual Quick Tunnel mode, no token");
+                cmd(".mjt tunnel set local http://127.0.0.1:8081", "Set manual quick origin");
+                cmd(".mjt tunnel start", "Start global quick/token/config tunnel");
+                cmd(".mjt tunnel stop", "Stop global tunnel");
+                cmd(".mjt tunnel set mode token", "Named tunnel token mode, needs token");
+                cmd(".mjt tunnel set token <token>", "Set named tunnel token");
+                return;
+
+            case "gateway":
+                title("Gateway Help");
+                cmd(".mjt gateway show", "Show gateway config");
+                cmd(".mjt gateway start", "Start TCP gateway");
+                cmd(".mjt gateway stop", "Stop TCP gateway");
+                cmd(".mjt gateway route add mc 127.0.0.1 25565", "Add Minecraft TCP route");
+                cmd(".mjt gateway default mc", "Use Minecraft as unknown TCP fallback");
+                cmd(".mjt gateway default close", "Close unknown TCP fallback");
+                return;
+
+            case "minecraft":
+            case "mc":
+                title("Minecraft Help");
+                cmd(".mjt minecraft start", "Start managed Minecraft target");
+                cmd(".mjt minecraft start <command>", "Start target with custom command");
+                cmd(".mjt minecraft stop", "Send stop to Minecraft");
+                cmd(".mjt minecraft kill", "Force kill target");
+                cmd(".mjt minecraft status", "Show target status");
+                return;
+
+            case "ssh":
+            case "sftp":
+                title("SSH/SFTP Help");
+                cmd(".mjt ssh show", "Show config");
+                cmd(".mjt ssh set host 127.0.0.1", "Set bind host");
+                cmd(".mjt ssh set port 2022", "Set SSH/SFTP port");
+                cmd(".mjt ssh set user admin", "Set username");
+                cmd(".mjt ssh set pass <password>", "Set password");
+                cmd(".mjt ssh set mode real-tty", "Use real terminal mode if supported");
+                cmd(".mjt ssh start", "Start SSH/SFTP");
+                return;
+
+            case "bot":
+                title("KeepAlive Bot Help");
+                cmd(".mjt bot show", "Show bot status/config");
+                cmd(".mjt bot set enabled true", "Enable bot");
+                cmd(".mjt bot set host 127.0.0.1", "Set MC server host");
+                cmd(".mjt bot set port 25565", "Set MC server port");
+                cmd(".mjt bot start", "Start bot loop");
+                cmd(".mjt bot stop", "Stop bot loop");
+                return;
+
+            case "cloudflare-ddns":
+            case "ddns":
+                title("Cloudflare DDNS Help");
+                cmd(".mjt cloudflare show", "Show DDNS config");
+                cmd(".mjt cloudflare set token <token>", "Set Cloudflare API token");
+                cmd(".mjt cloudflare set zone <zone_id>", "Set Zone ID");
+                cmd(".mjt cloudflare set name <domain>", "Set DNS record name");
+                cmd(".mjt cloudflare ddns once", "Update once");
+                cmd(".mjt cloudflare ddns start", "Start DDNS loop");
+                return;
+
+            default:
+                System.out.println(RED + "Unknown help topic: " + topic + RESET);
+                System.out.println(YELLOW + "Use: .mjt help" + RESET);
+        }
+    }
+
+    private static void title(String title) {
+        System.out.println(GREEN + "==================================================" + RESET);
+        System.out.println(GREEN + title + RESET);
+        System.out.println(GREEN + "==================================================" + RESET);
+    }
+
+    private static void section(String title) {
+        System.out.println();
+        System.out.println(YELLOW + "== " + title + " ==" + RESET);
+    }
+
+    private static void cmd(String command, String description) {
+        System.out.printf("  " + CYAN + "%-42s" + RESET + " %s%n", command, description);
+    }
+}

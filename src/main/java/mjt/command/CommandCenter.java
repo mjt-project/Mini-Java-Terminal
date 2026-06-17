@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import main.java.mjt.system.BuildInfo;
+import main.java.mjt.help.HelpCenter;
 
 public class CommandCenter {
     private static final String RESET = "\u001B[0m";
@@ -198,6 +199,39 @@ public class CommandCenter {
             return "help";
         }
 
+        if (lower.startsWith("help ")) {
+            return "help-topic " + raw.substring("help ".length()).trim();
+        }
+
+        if (lower.equals("system help")) return "help-topic system";
+        if (lower.equals("system download help")
+                || lower.equals("system cloudflared help")
+                || lower.equals("cloudflared help")
+                || lower.equals("tunnel binary help")) {
+            return "help-topic download";
+        }
+
+        if (lower.equals("system install cloudflared")
+                || lower.equals("system download cloudflared")
+                || lower.equals("system cloudflared install")
+                || lower.equals("cloudflared install")
+                || lower.equals("tunnel install")
+                || lower.equals("tunnel binary install")) {
+            return "system-cloudflared-install";
+        }
+
+        if (lower.equals("system cloudflared check")
+                || lower.equals("cloudflared check")
+                || lower.equals("tunnel binary check")) {
+            return "system-cloudflared-check";
+        }
+
+        if (lower.equals("system cloudflared show")
+                || lower.equals("cloudflared show")
+                || lower.equals("tunnel binary show")) {
+            return "system-cloudflared-show";
+        }
+
         if (lower.equals("exit")) {
             return "mjt-exit";
         }
@@ -232,6 +266,30 @@ public class CommandCenter {
         if (lower.equals("http start")) return "http-start";
         if (lower.equals("http stop")) return "http-stop";
         if (lower.startsWith("http set ")) return "http-set " + raw.substring("http set ".length()).trim();
+        if (lower.equals("http site list")) return "http-site-list";
+        if (lower.startsWith("http site show ")) return "http-site-show " + raw.substring("http site show ".length()).trim();
+        if (lower.startsWith("http site add ")) return "http-site-add " + raw.substring("http site add ".length()).trim();
+        if (lower.startsWith("http site remove ")) return "http-site-remove " + raw.substring("http site remove ".length()).trim();
+        if (lower.startsWith("http site start ")) return "http-site-start " + raw.substring("http site start ".length()).trim();
+        if (lower.startsWith("http site stop ")) return "http-site-stop " + raw.substring("http site stop ".length()).trim();
+        if (lower.startsWith("http site restart ")) return "http-site-restart " + raw.substring("http site restart ".length()).trim();
+        if (lower.startsWith("http site set ")) return "http-site-set " + raw.substring("http site set ".length()).trim();
+
+        if (lower.equals("website help")) return "website-help";
+        if (lower.equals("website list")) return "website-list";
+        if (lower.startsWith("website show ")) return "website-show " + raw.substring("website show ".length()).trim();
+        if (lower.startsWith("website add ")) return "http-site-add " + raw.substring("website add ".length()).trim();
+        if (lower.startsWith("website remove ")) return "http-site-remove " + raw.substring("website remove ".length()).trim();
+        if (lower.startsWith("website start ")) return "http-site-start " + raw.substring("website start ".length()).trim();
+        if (lower.startsWith("website stop ")) return "http-site-stop " + raw.substring("website stop ".length()).trim();
+        if (lower.startsWith("website restart ")) return "http-site-restart " + raw.substring("website restart ".length()).trim();
+        if (lower.startsWith("website set ")) return "http-site-set " + raw.substring("website set ".length()).trim();
+        if (lower.equals("website guest list")) return "website-guest-list";
+        if (lower.equals("website guest create")) return "website-guest-create";
+        if (lower.startsWith("website guest show ")) return "website-guest-show " + raw.substring("website guest show ".length()).trim();
+        if (lower.startsWith("website guest stop ")) return "website-guest-stop " + raw.substring("website guest stop ".length()).trim();
+        if (lower.startsWith("website guest restart ")) return "website-guest-restart " + raw.substring("website guest restart ".length()).trim();
+        if (lower.startsWith("website guest remove ")) return "website-guest-remove " + raw.substring("website guest remove ".length()).trim();
 
         if (lower.equals("https help")) return "https-help";
         if (lower.equals("https show") || lower.equals("https status")) return "https-status";
@@ -253,6 +311,18 @@ public class CommandCenter {
         if (lower.startsWith("cloudflare set ")) return "cloudflare-set " + raw.substring("cloudflare set ".length()).trim();
         if (lower.equals("cloudflare show")) return "cloudflare-show";
         if (lower.startsWith("cloudflare ddns ")) return "cloudflare-ddns-" + raw.substring("cloudflare ddns ".length()).trim().replace(' ', '-');
+
+        if (lower.equals("tunnel help")) return "tunnel-help";
+        if (lower.equals("tunnel show") || lower.equals("tunnel status")) return "tunnel-status";
+        if (lower.equals("tunnel start")) return "tunnel-start";
+        if (lower.equals("tunnel stop")) return "tunnel-stop";
+        if (lower.startsWith("tunnel set ")) return "tunnel-set " + raw.substring("tunnel set ".length()).trim();
+        if (lower.equals("tunnel route list")) return "tunnel-route-list";
+        if (lower.startsWith("tunnel route add ")) return "tunnel-route-add " + raw.substring("tunnel route add ".length()).trim();
+        if (lower.startsWith("tunnel route remove ")) return "tunnel-route-remove " + raw.substring("tunnel route remove ".length()).trim();
+        if (lower.startsWith("tunnel route enable ")) return "tunnel-route-enable " + raw.substring("tunnel route enable ".length()).trim();
+        if (lower.startsWith("tunnel route disable ")) return "tunnel-route-disable " + raw.substring("tunnel route disable ".length()).trim();
+        if (lower.equals("tunnel config generate")) return "tunnel-config-generate";
 
         if (lower.equals("gateway help")) return "gateway-help";
         if (lower.equals("gateway show")) return "gateway-show";
@@ -276,6 +346,26 @@ public class CommandCenter {
     private boolean handleInternalCommand(String command) throws IOException {
         if (command.equalsIgnoreCase("help")) {
             printHelp();
+            return true;
+        }
+
+        if (command.startsWith("help-topic ")) {
+            HelpCenter.printTopic(command.substring("help-topic ".length()).trim());
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("system-cloudflared-install")) {
+            context.systemDownloadService().installCloudflared();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("system-cloudflared-check")) {
+            context.systemDownloadService().checkCloudflared(false);
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("system-cloudflared-show")) {
+            context.systemDownloadService().showCloudflared();
             return true;
         }
 
@@ -306,6 +396,91 @@ public class CommandCenter {
 
         if (command.startsWith("http-set ")) {
             handleHttpSet(command);
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("http-site-list")) {
+            context.httpService().listSites();
+            return true;
+        }
+
+        if (command.startsWith("http-site-show ")) {
+            context.httpService().showSite(command.substring("http-site-show ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("http-site-add ")) {
+            context.httpService().addSite(command.substring("http-site-add ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("http-site-remove ")) {
+            context.httpService().removeSite(command.substring("http-site-remove ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("http-site-start ")) {
+            context.httpService().startSite(command.substring("http-site-start ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("http-site-stop ")) {
+            context.httpService().stopSite(command.substring("http-site-stop ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("http-site-restart ")) {
+            context.httpService().restartSite(command.substring("http-site-restart ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("http-site-set ")) {
+            context.httpService().setSiteConfig(command.substring("http-site-set ".length()).trim());
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("website-help")) {
+            printWebsiteHelp();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("website-list")) {
+            context.httpService().listSites();
+            return true;
+        }
+
+        if (command.startsWith("website-show ")) {
+            context.httpService().showSite(command.substring("website-show ".length()).trim());
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("website-guest-list")) {
+            context.guestWebsiteService().listGuests();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("website-guest-create")) {
+            context.guestWebsiteService().createGuest();
+            return true;
+        }
+
+        if (command.startsWith("website-guest-show ")) {
+            context.guestWebsiteService().showGuest(command.substring("website-guest-show ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("website-guest-stop ")) {
+            context.guestWebsiteService().stopGuest(command.substring("website-guest-stop ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("website-guest-restart ")) {
+            context.guestWebsiteService().restartGuest(command.substring("website-guest-restart ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("website-guest-remove ")) {
+            context.guestWebsiteService().removeGuest(command.substring("website-guest-remove ".length()).trim());
             return true;
         }
 
@@ -501,6 +676,61 @@ public class CommandCenter {
             return true;
         }
 
+        if (command.equalsIgnoreCase("tunnel-help")) {
+            printTunnelHelp();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("tunnel-show") || command.equalsIgnoreCase("tunnel-status")) {
+            context.cloudflareTunnelService().showConfig();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("tunnel-start")) {
+            context.cloudflareTunnelService().start();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("tunnel-stop")) {
+            context.cloudflareTunnelService().stop();
+            return true;
+        }
+
+        if (command.startsWith("tunnel-set ")) {
+            handleTunnelSet(command);
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("tunnel-route-list")) {
+            context.cloudflareTunnelService().listRoutes();
+            return true;
+        }
+
+        if (command.startsWith("tunnel-route-add ")) {
+            context.cloudflareTunnelService().addRoute(command.substring("tunnel-route-add ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("tunnel-route-remove ")) {
+            context.cloudflareTunnelService().removeRoute(command.substring("tunnel-route-remove ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("tunnel-route-enable ")) {
+            context.cloudflareTunnelService().setRouteEnabled(command.substring("tunnel-route-enable ".length()).trim(), true);
+            return true;
+        }
+
+        if (command.startsWith("tunnel-route-disable ")) {
+            context.cloudflareTunnelService().setRouteEnabled(command.substring("tunnel-route-disable ".length()).trim(), false);
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("tunnel-config-generate")) {
+            context.cloudflareTunnelService().generateConfig();
+            return true;
+        }
+
         if (command.equalsIgnoreCase("ssh-show")) {
             context.sshServerService().showConfig();
             return true;
@@ -627,6 +857,15 @@ public class CommandCenter {
                 command,
                 context.runtimeConfig().getCurrentDir()
         );
+    }
+
+    private void shutdownServices() {
+        try { context.cloudflareTunnelService().stopAll(); } catch (Exception ignored) {}
+        try { context.keepAliveBotService().stop(); } catch (Exception ignored) {}
+        try { context.sshServerService().stop(); } catch (Exception ignored) {}
+        try { context.gatewayService().stop(); } catch (Exception ignored) {}
+        try { context.httpsService().stop(); } catch (Exception ignored) {}
+        try { context.httpService().stop(); } catch (Exception ignored) {}
     }
 
     private void autoStartBotIfEnabled() {
@@ -791,6 +1030,28 @@ public class CommandCenter {
             context.cloudflareDnsService().setConfig(key, value);
         } catch (Exception e) {
             System.out.println(RED + "[Cloudflare] Error saving config: " + e.getMessage() + RESET);
+        }
+    }
+
+    private void handleTunnelSet(String command) {
+        String raw = command.substring("tunnel-set ".length()).trim();
+
+        int firstSpace = raw.indexOf(' ');
+
+        if (firstSpace <= 0) {
+            System.out.println(RED + "Usage: .mjt tunnel set <key> <value>" + RESET);
+            System.out.println("Example: .mjt tunnel set cloudflared /home/container/MJT/system/downloads/cloudflared/cloudflared");
+            System.out.println("Installer: .mjt system install cloudflared");
+            return;
+        }
+
+        String key = raw.substring(0, firstSpace).trim();
+        String value = raw.substring(firstSpace + 1).trim();
+
+        try {
+            context.cloudflareTunnelService().setConfig(key, value);
+        } catch (Exception e) {
+            System.out.println(RED + "[Tunnel] Error saving config: " + e.getMessage() + RESET);
         }
     }
 
@@ -1038,6 +1299,69 @@ public class CommandCenter {
         context.logService().write("[GATEWAY SHOW]\n");
     }
 
+    private void printTunnelHelp() {
+        printTitle("Cloudflare Tunnel Commands");
+
+        printSection("1. Tunnel Role");
+        System.out.println("  Cloudflare Tunnel is used for public HTTPS web access.");
+        System.out.println("  HTTP sites stay local on 127.0.0.1 ports.");
+        System.out.println("  Gateway remains a TCP router for Minecraft/SSH/manual TCP.");
+
+        printSection("2. Tunnel Core");
+        printCommand(".mjt tunnel show", "View Cloudflare Tunnel config/status");
+        printCommand(".mjt tunnel start", "Start cloudflared");
+        printCommand(".mjt tunnel stop", "Stop cloudflared");
+        printCommand(".mjt tunnel set enabled true", "Enable tunnel service");
+        printCommand(".mjt tunnel set mode token", "Use Cloudflare dashboard token mode");
+        printCommand(".mjt tunnel set token <token>", "Save tunnel token");
+        printCommand(".mjt tunnel set auto-start true", "Start tunnel on MJT startup");
+        printCommand(".mjt tunnel set cloudflared cloudflared", "Set cloudflared binary path");
+        printCommand(".mjt tunnel set mode quick", "Use one manual Quick Tunnel URL");
+        printCommand(".mjt tunnel set local http://127.0.0.1:8081", "Set manual Quick Tunnel local origin");
+
+        printSection("3. Guest Quick Tunnel");
+        printCommand(".mjt website guest create", "Create guest website with trycloudflare.com URL");
+        printCommand(".mjt website guest show <id>", "Show guest public URL");
+        printCommand(".mjt website guest stop <id>", "Stop guest quick tunnel");
+
+        printSection("4. Route Config");
+        printCommand(".mjt tunnel route list", "List local route config");
+        printCommand(".mjt tunnel route add main main.example.com http://127.0.0.1:8081", "Add route metadata");
+        printCommand(".mjt tunnel route add docs docs.example.com http://127.0.0.1:8082", "Add docs route");
+        printCommand(".mjt tunnel route remove docs", "Remove route metadata");
+        printCommand(".mjt tunnel config generate", "Generate config.yml for config mode");
+
+        printSection("Notes");
+        System.out.println("  In token mode, public hostnames are usually configured in Cloudflare Zero Trust dashboard.");
+        System.out.println("  In config mode, MJT generates ingress rules from tunnel routes.");
+        System.out.println();
+    }
+
+    private void printWebsiteHelp() {
+        printTitle("Website Commands");
+
+        printSection("1. Local Websites");
+        System.out.println("  Websites are served locally from /home/container/server/website/www.");
+        System.out.println("  Public HTTPS should use Cloudflare Tunnel, not the Gateway game port.");
+        printCommand(".mjt website list", "List configured websites");
+        printCommand(".mjt website show main", "Show one website");
+        printCommand(".mjt website add docs 127.0.0.1 8082 /home/container/server/website/www/docs", "Add website");
+        printCommand(".mjt website start docs", "Start one website");
+        printCommand(".mjt website stop docs", "Stop one website");
+        printCommand(".mjt website restart docs", "Restart one website");
+        printCommand(".mjt website set docs spa true", "Set website option");
+
+        printSection("2. Guest Quick Tunnel");
+        System.out.println("  Guest sites use cloudflared quick tunnel and receive a temporary trycloudflare.com URL.");
+        printCommand(".mjt website guest create", "Create guest website and quick tunnel");
+        printCommand(".mjt website guest list", "List guest websites");
+        printCommand(".mjt website guest show <id>", "Show guest public URL");
+        printCommand(".mjt website guest stop <id>", "Stop guest HTTP site and quick tunnel");
+        printCommand(".mjt website guest restart <id>", "Restart guest HTTP site and quick tunnel");
+        printCommand(".mjt website guest remove <id>", "Remove guest config, keep files for safety");
+        System.out.println();
+    }
+
     private void printGatewayHelp() {
         printTitle("Gateway Router Commands");
 
@@ -1136,7 +1460,7 @@ public class CommandCenter {
         printCommand(".mjt http stop", "Stop local HTTP service");
         printCommand(".mjt http set host 127.0.0.1", "Bind HTTP locally");
         printCommand(".mjt http set port 8080", "Set HTTP local port");
-        printCommand(".mjt http set root /home/container/www", "Set web root");
+        printCommand(".mjt http set root /home/container/server/website/www/main", "Set web root");
         printCommand(".mjt http set index index.html", "Set index file");
         printCommand(".mjt http set spa true", "Enable SPA fallback");
         printCommand(".mjt http set auto-https true", "Mark HTTPS as handled by outer proxy/tunnel");
@@ -1154,8 +1478,8 @@ public class CommandCenter {
         printCommand(".mjt https set enabled true", "Enable HTTPS service");
         printCommand(".mjt https set host 127.0.0.1", "Bind HTTPS locally");
         printCommand(".mjt https set port 8443", "Set HTTPS local port");
-        printCommand(".mjt https set root /home/container/www", "Set web root");
-        printCommand(".mjt https set keystore /home/container/mjt-config/https.p12", "Set PKCS12 keystore path");
+        printCommand(".mjt https set root /home/container/server/website/www/main", "Set web root");
+        printCommand(".mjt https set keystore /home/container/MJT/services/https/https.p12", "Set PKCS12 keystore path");
         printCommand(".mjt https set password change-me", "Set keystore password");
         printCommand(".mjt https set cn localhost", "Set self-signed certificate CN");
         printCommand(".mjt https cert self-signed", "Generate a self-signed PKCS12 cert using keytool");
@@ -1179,86 +1503,7 @@ public class CommandCenter {
     }
 
     private void printHelp() throws IOException {
-        printTitle("Mini Java Terminal Commands");
-
-        printSection("1. Terminal Runtime");
-        printCommand(".mjt help / .help", "View general help");
-        printCommand(".mjt --version / .mjt -v", "Show runtime version");
-        printCommand(".mjt mode", "Show route mode and target status");
-        printCommand(".mjt pwd / .pwd", "Show current directory");
-        printCommand(".mjt cd <folder>", "Change directory");
-        printCommand(".mjt public-ip", "Check public IPv4");
-        printCommand(".mjt timeout <seconds>", "Set timeout, 0 = unlimited");
-
-        printSection("2. Minecraft Target");
-        printCommand(".mjt minecraft start", "Start bash start-minecraft.sh as managed target");
-        printCommand(".mjt minecraft start <cmd>", "Start Minecraft with custom command");
-        printCommand(".mjt minecraft stop", "Send stop to Minecraft target");
-        printCommand(".mjt minecraft kill", "Force kill Minecraft target");
-        printCommand(".mjt minecraft status", "Show target and route mode");
-        printCommand(".command minecraft", "Route no-prefix input to Minecraft target");
-        printCommand(".command terminal", "Route no-prefix input to shell terminal");
-
-        printSection("3. KeepAlive Bot");
-        printCommand(".mjt bot show / .bot-show", "Show KeepAlive bot config/status");
-        printCommand(".mjt bot start / .bot-start", "Start KeepAlive bot loop");
-        printCommand(".mjt bot stop / .bot-stop", "Stop KeepAlive bot");
-        printCommand(".mjt bot set enabled true", "Enable auto bot start with Minecraft");
-        printCommand(".mjt bot set host 127.0.0.1", "Set target host");
-        printCommand(".mjt bot set port 25565", "Set target port");
-        printCommand(".mjt bot set username MJT_Renew", "Set offline-mode bot username");
-        printCommand(".mjt bot set reconnect 30", "Set reconnect delay");
-
-        printSection("4. HTTP Service");
-        printCommand(".mjt http show", "Show local HTTP service config");
-        printCommand(".mjt http start", "Start HTTP service on 127.0.0.1:8080");
-        printCommand(".mjt http stop", "Stop HTTP service");
-        printCommand(".mjt http set port 8080", "Set HTTP local port");
-        printCommand(".mjt http set root /home/container/www", "Set web root");
-
-        printSection("5. HTTPS Service");
-        printCommand(".mjt https show", "Show local HTTPS service config");
-        printCommand(".mjt https cert self-signed", "Generate self-signed cert");
-        printCommand(".mjt https set enabled true", "Enable HTTPS service");
-        printCommand(".mjt https start", "Start HTTPS service on 127.0.0.1:8443");
-        printCommand(".mjt https stop", "Stop HTTPS service");
-
-        printSection("6. SSH / SFTP Server");
-        printCommand(".mjt ssh show", "View SSH/SFTP config");
-        printCommand(".mjt ssh set host <host>", "Bind host");
-        printCommand(".mjt ssh set port <port>", "Set SSH/SFTP port");
-        printCommand(".mjt ssh set user <username>", "Set username");
-        printCommand(".mjt ssh set pass <password>", "Set password");
-        printCommand(".mjt ssh set mode <real-tty|basic>", "Set SSH terminal mode");
-        printCommand(".mjt ssh start", "Start SSH/SFTP server");
-        printCommand(".mjt ssh stop", "Stop SSH/SFTP server");
-        printCommand(".mjt ssh status", "View SSH/SFTP status");
-
-        printSection("7. Gateway Router");
-        printCommand(".mjt gateway help", "View full Gateway router help");
-        printCommand(".mjt gateway show", "View Gateway router configuration");
-        printCommand(".mjt gateway start", "Start Gateway router");
-        printCommand(".mjt gateway stop", "Stop Gateway router");
-        printCommand(".mjt gateway set gateway.public.port auto", "Set public Gateway port");
-        printCommand(".mjt gateway route add mc 127.0.0.1 25565", "Add Minecraft route");
-        printCommand(".mjt gateway default mc", "Use Minecraft as TCP fallback");
-
-        printSection("8. Cloudflare DDNS");
-        printCommand(".mjt cloudflare show", "View Cloudflare config");
-        printCommand(".mjt cloudflare set token <token>", "Save Cloudflare API token");
-        printCommand(".mjt cloudflare set zone <zone_id>", "Save Cloudflare Zone ID");
-        printCommand(".mjt cloudflare set name <domain>", "Save DNS record name");
-        printCommand(".mjt cloudflare ddns once", "Update DNS once");
-        printCommand(".mjt cloudflare ddns start", "Start auto DDNS");
-        printCommand(".mjt cloudflare ddns stop", "Stop auto DDNS");
-        printCommand(".mjt cloudflare ddns status", "View DDNS status");
-
-        printSection("9. Shell / Safety");
-        printCommand(".command <shell>", "Force run shell command");
-        printCommand(".mjt exit / .mjt-exit", "Shutdown Mini Java Terminal");
-        System.out.println("  " + RED + "Not recommended in panel: su, sudo, nano, vim, vi, top, htop" + RESET);
-
-        System.out.println();
-        context.logService().write("[HELP]\n");
+        HelpCenter.printIndex();
+        context.logService().write("[HELP INDEX]\n");
     }
 }
