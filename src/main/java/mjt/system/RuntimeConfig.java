@@ -1,4 +1,4 @@
-package main.java.mjt.system;
+package terminal.system;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;

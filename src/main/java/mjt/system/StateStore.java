@@ -1,4 +1,4 @@
-package main.java.mjt.system;
+package terminal.system;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -339,7 +339,6 @@ public class StateStore {
         properties.setProperty("app.migrated.terminal-state", "false");
         properties.setProperty("app.command.prefix", ".");
         properties.setProperty("app.prefix.show", ".");
-        properties.setProperty("minecraft.start-command", "bash start-minecraft.sh");
         return properties;
     }
 

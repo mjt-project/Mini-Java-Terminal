@@ -1,4 +1,4 @@
-package main.java.mjt.system;
+package terminal.system;
 
 import java.io.BufferedReader;
 import java.io.IOException;

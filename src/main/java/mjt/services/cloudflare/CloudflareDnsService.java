@@ -1,4 +1,4 @@
-package main.java.mjt.services.cloudflare;
+package terminal.services.cloudflare;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -10,9 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import main.java.mjt.system.LogService;
-import main.java.mjt.system.PublicIpService;
-import main.java.mjt.system.StateStore;
+import terminal.system.LogService;
+import terminal.system.PublicIpService;
+import terminal.system.StateStore;
 
 public class CloudflareDnsService {
     private static final String RESET = "\u001B[0m";

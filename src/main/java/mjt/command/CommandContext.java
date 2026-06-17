@@ -1,16 +1,15 @@
-package main.java.mjt.command;
+package terminal.command;
 
-import main.java.mjt.services.cloudflare.CloudflareDnsService;
-import main.java.mjt.services.gateway.GatewayService;
-import main.java.mjt.services.sshd.SshServerService;
+import terminal.services.cloudflare.CloudflareDnsService;
+import terminal.services.gateway.GatewayService;
+import terminal.services.sshd.SshServerService;
 
-import main.java.mjt.system.CommandGuard;
-import main.java.mjt.system.LogService;
-import main.java.mjt.system.PublicIpService;
-import main.java.mjt.system.RuntimeConfig;
-import main.java.mjt.system.ShellRunner;
-import main.java.mjt.system.StateStore;
-import main.java.mjt.system.TargetProcessService;
+import terminal.system.CommandGuard;
+import terminal.system.LogService;
+import terminal.system.PublicIpService;
+import terminal.system.RuntimeConfig;
+import terminal.system.ShellRunner;
+import terminal.system.StateStore;
 
 public record CommandContext(
         LogService logService,
@@ -21,7 +20,6 @@ public record CommandContext(
         CommandGuard commandGuard,
         CloudflareDnsService cloudflareDnsService,
         SshServerService sshServerService,
-        GatewayService gatewayService,
-        TargetProcessService targetProcessService
+        GatewayService gatewayService
 ) {
 }
