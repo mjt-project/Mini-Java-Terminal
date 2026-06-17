@@ -1,4 +1,4 @@
-package terminal;
+package main.java.mjt;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -6,17 +6,20 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 
-import terminal.command.CommandCenter;
-import terminal.command.CommandContext;
-import terminal.services.CloudflareDnsService;
-import terminal.services.GatewayService;
-import terminal.services.SshServerService;
-import terminal.system.CommandGuard;
-import terminal.system.LogService;
-import terminal.system.PublicIpService;
-import terminal.system.RuntimeConfig;
-import terminal.system.ShellRunner;
-import terminal.system.StateStore;
+import main.java.mjt.command.CommandCenter;
+import main.java.mjt.command.CommandContext;
+import main.java.mjt.services.cloudflare.CloudflareDnsService;
+import main.java.mjt.services.gateway.GatewayService;
+import main.java.mjt.services.sshd.SshServerService;
+import main.java.mjt.system.BuildInfo;
+import main.java.mjt.system.CommandGuard;
+import main.java.mjt.system.KeepAliveBotService;
+import main.java.mjt.system.LogService;
+import main.java.mjt.system.PublicIpService;
+import main.java.mjt.system.RuntimeConfig;
+import main.java.mjt.system.ShellRunner;
+import main.java.mjt.system.StateStore;
+import main.java.mjt.system.TargetProcessService;
 
 public class Main {
     private static final String RESET = "\u001B[0m";
@@ -27,12 +30,14 @@ public class Main {
     public static void main(String[] args) {
         try {
             LogService logService = new LogService(Paths.get("logs"));
-            StateStore stateStore = new StateStore(Paths.get("terminal-state.properties"));
+            StateStore stateStore = new StateStore(Paths.get("mjt-config"));
             RuntimeConfig runtimeConfig = new RuntimeConfig();
 
             ShellRunner shellRunner = new ShellRunner(logService);
             PublicIpService publicIpService = new PublicIpService(logService);
             CommandGuard commandGuard = new CommandGuard(logService);
+            TargetProcessService targetProcessService = new TargetProcessService(logService);
+            KeepAliveBotService keepAliveBotService = new KeepAliveBotService(stateStore, logService);
 
             CloudflareDnsService cloudflareDnsService =
                     new CloudflareDnsService(stateStore, publicIpService, logService);
@@ -51,7 +56,9 @@ public class Main {
                     commandGuard,
                     cloudflareDnsService,
                     sshServerService,
-                    gatewayService
+                    gatewayService,
+                    targetProcessService,
+                    keepAliveBotService
             );
 
             CommandCenter commandCenter = new CommandCenter(commandContext);
@@ -85,14 +92,28 @@ public class Main {
             LogService logService,
             RuntimeConfig runtimeConfig
     ) throws IOException {
-        System.out.println(GREEN + "Mini Java Terminal started." + RESET);
-        System.out.println(CYAN + "Java terminal panel is ready." + RESET);
-        System.out.println(YELLOW + "Gõ help để xem lệnh hỗ trợ." + RESET);
-        System.out.println("Current dir: " + runtimeConfig.getCurrentDir());
-        System.out.println("Log file   : " + logService.getLogFile().toAbsolutePath());
+        System.out.println();
+        System.out.println(GREEN + "==================================================" + RESET);
+        System.out.println(GREEN + " " + BuildInfo.APP_NAME + " v" + BuildInfo.VERSION + RESET);
+        System.out.println(GREEN + "==================================================" + RESET);
+
+        System.out.println(CYAN + " Status      : READY" + RESET);
+        System.out.println(" Workdir     : " + runtimeConfig.getCurrentDir());
+        System.out.println(" Log file    : " + logService.getLogFile().toAbsolutePath());
+
+        System.out.println();
+        System.out.println(YELLOW + " Quick commands:" + RESET);
+        System.out.println("  .mjt help              - Show all commands");
+        System.out.println("  .mjt --version         - Show MJT version");
+        System.out.println("  .mjt minecraft start   - Start Minecraft managed target");
+        System.out.println("  .mjt bot show          - Show KeepAlive bot status");
+        System.out.println("  .mjt bot start         - Start KeepAlive bot");
+        System.out.println("  .mjt gateway help      - Show Gateway commands");
+        System.out.println("  .mjt ssh show          - Show SSH/SFTP config");
+        System.out.println("  .mjt exit              - Stop Mini Java Terminal");
         System.out.println();
 
-        logService.write("[START] Mini Java Terminal\n");
+        logService.write("[START] " + BuildInfo.APP_NAME + " v" + BuildInfo.VERSION + "\n");
         logService.write("[CURRENT DIR] " + runtimeConfig.getCurrentDir() + "\n");
     }
 }

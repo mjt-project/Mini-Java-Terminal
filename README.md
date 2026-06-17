@@ -1,16 +1,18 @@
 # Mini Java Terminal
 
-> A lightweight Java terminal panel for command execution, logging, Cloudflare DDNS, SSH/SFTP access, Gateway routing, and runtime utilities.
+> A lightweight Java terminal runtime for controlled command execution, logging, Cloudflare DDNS, SSH/SFTP access, Gateway routing, Minecraft managed target mode, and KeepAliveBot support.
 
 ## Version
 
 ```text
-v2.3.27
+v2.5.0
 ```
 
 ## Overview
 
-Mini Java Terminal is a lightweight Java console application designed to run controlled command execution through a server-panel style terminal.
+Mini Java Terminal is a lightweight Java console application designed to run inside server-panel style environments.
+
+It provides a controlled terminal runtime with command routing, logging, SSH/SFTP access, Cloudflare DDNS, Gateway routing, Minecraft managed target support, and an offline-mode KeepAliveBot for supported Minecraft hosting environments.
 
 The project is built for learning, authorized testing, and managing simple runtime utilities in a controlled environment.
 
@@ -18,35 +20,129 @@ Core goals:
 
 * Keep the terminal runtime small and readable
 * Route commands through a shared command center
-* Support logs, working directories, timeout control, and command guards
+* Support logs, working directory control, timeout control, and command guards
 * Provide Cloudflare DDNS support
 * Provide SSH/SFTP access through the Java runtime
 * Provide an experimental Gateway layer for HTTP, SSH/SFTP proxying, and manual TCP routing
+* Provide managed Minecraft server process control
+* Provide KeepAliveBot support for `online-mode=false` Minecraft servers
+
+## What's New in v2.5.0
+
+### Added KeepAliveBot
+
+This release adds the new **KeepAliveBot** feature.
+
+KeepAliveBot is an offline-mode Minecraft bot that can join the server as a normal player and help keep the server active when enabled.
+
+It is useful for hosting environments that allow renew / keep-alive behavior.
+
+Main KeepAliveBot features:
+
+* Offline-mode bot login
+* Configurable bot username
+* Configurable host and port
+* Automatic reconnect loop
+* Manual start / stop / status commands
+* Designed for `online-mode=false` Minecraft servers
+
+### Added Minecraft Managed Target Support
+
+Mini Java Terminal can now start Minecraft as a managed child process instead of running Minecraft directly through `.command`.
+
+This prevents long-running Minecraft startup scripts from blocking the shell command runner.
+
+Recommended flow:
+
+```text
+.mjt minecraft start
+```
+
+Then send Minecraft console commands directly:
+
+```text
+list
+say hello
+stop
+```
+
+## Command Rule
+
+Mini Java Terminal uses a strict command routing rule:
+
+```text
+.mjt <command>       = MJT internal command
+.command <command>   = Linux / shell command
+no prefix            = Minecraft console input only when Minecraft target is running
+```
+
+Examples:
+
+```text
+.mjt help
+.command ls
+.command pwd
+.mjt minecraft start
+```
+
+When Minecraft is running, no-prefix input is sent to the Minecraft console:
+
+```text
+list
+say hello
+op PlayerName
+stop
+```
+
+Do not start Minecraft through shell commands such as:
+
+```text
+.command bash start-minecraft.sh
+bash start-minecraft.sh
+```
+
+Use managed target mode instead:
+
+```text
+.mjt minecraft start
+```
 
 ## Features
 
-### Terminal Runtime
+## Terminal Runtime
 
-* Interactive command input
-* Real-time command output
-* Working directory control with `cd` and `pwd`
-* Clear console support with `clear` and `cls`
-* Runtime command timeout
-* Automatic log files
-* Basic command guard for commands that may freeze or misuse panel consoles
+Mini Java Terminal provides controlled command execution and runtime utilities.
 
 Supported commands:
 
 ```text
-help
-pwd
-cd <folder>
-clear
-cls
-public-ip
-timeout
-timeout <seconds>
-shutdown-terminal
+.mjt help
+.mjt --version
+.mjt version
+.mjt -v
+.mjt pwd
+.mjt cd <folder>
+.mjt clear
+.mjt cls
+.mjt public-ip
+.mjt timeout
+.mjt timeout <seconds>
+.mjt exit
+```
+
+Shell command execution:
+
+```text
+.command <shell-command>
+```
+
+Examples:
+
+```text
+.command ls
+.command pwd
+.command curl https://example.com
+.command bash backup.sh
 ```
 
 Timeout behavior:
@@ -62,58 +158,185 @@ The normal `exit` command is blocked to avoid accidentally stopping the runtime.
 To intentionally stop Mini Java Terminal, use:
 
 ```text
-shutdown-terminal
+.mjt exit
 ```
 
-### Improved Help Display
+## Minecraft Managed Target
 
-The `help` output has been reorganized into clearer sections.
+Mini Java Terminal can manage a Minecraft server process as a child process.
 
-Main help now separates commands into groups:
+Supported commands:
 
 ```text
-Terminal Runtime
-Cloudflare DDNS
-SSH / SFTP Server
-SFTP Compatibility Aliases
-Gateway
-Safety
-Commands not recommended
+.mjt minecraft start
+.mjt minecraft stop
+.mjt minecraft kill
+.mjt minecraft status
 ```
 
-Gateway-related details are available through:
+Short aliases:
 
 ```text
-gateway-help
+.mjt mc start
+.mjt mc stop
+.mjt mc kill
+.mjt mc status
 ```
 
-This keeps the main help output easier to read while still keeping advanced Gateway commands available.
+Default start command:
 
-### Cloudflare DDNS
+```text
+bash start-minecraft.sh
+```
 
-Cloudflare DDNS support is completed.
+Recommended start flow:
+
+```text
+.mjt minecraft start
+```
+
+After Minecraft starts, send console commands directly:
+
+```text
+list
+say hello
+stop
+```
+
+To run shell commands while Minecraft is running:
+
+```text
+.command ls
+.command pwd
+.command curl https://example.com
+```
+
+Do not use:
+
+```text
+.command bash start-minecraft.sh
+```
+
+Use:
+
+```text
+.mjt minecraft start
+```
+
+## KeepAliveBot
+
+KeepAliveBot is an offline-mode Minecraft bot for supported hosting environments.
+
+It can join the Minecraft server as a normal player and reconnect automatically if disconnected.
+
+This feature is designed for:
+
+```text
+online-mode=false
+```
+
+Recommended server settings:
+
+```properties
+server-ip=127.0.0.1
+server-port=25565
+online-mode=false
+```
+
+Supported bot commands:
+
+```text
+.mjt bot show
+.mjt bot status
+.mjt bot start
+.mjt bot stop
+.mjt bot set enabled true
+.mjt bot set host 127.0.0.1
+.mjt bot set port 25565
+.mjt bot set username MJT_Renew
+.mjt bot set reconnect 30
+```
+
+Basic setup:
+
+```text
+.mjt bot set enabled true
+.mjt bot set host 127.0.0.1
+.mjt bot set port 25565
+.mjt bot set username MJT_Renew
+.mjt bot set reconnect 60
+.mjt bot start
+```
+
+Expected behavior:
+
+```text
+BOT Connecting to 127.0.0.1:25565 as MJT_Renew
+BOT Joined Minecraft server as MJT_Renew
+```
+
+If the bot is disconnected, it waits and reconnects automatically.
+
+If the bot username is already online, the server may return:
+
+```text
+multiplayer.disconnect.duplicate_login
+```
+
+In that case, stop the old bot process or change the bot username:
+
+```text
+.mjt bot set username MJT_Renew2
+.mjt bot stop
+.mjt bot start
+```
+
+## Improved Help Display
+
+The help output is organized into clear sections.
+
+Main help:
+
+```text
+.mjt help
+```
+
+Gateway help:
+
+```text
+.mjt gateway help
+```
+
+Version command:
+
+```text
+.mjt --version
+```
+
+## Cloudflare DDNS
 
 Mini Java Terminal can update a Cloudflare DNS A record to the current public IPv4 address of the panel host.
 
 Supported commands:
 
 ```text
-cloudflare-show
-cloudflare-set token <token>
-cloudflare-set zone <zone_id>
-cloudflare-set name <domain>
-cloudflare-set proxied false
-cloudflare-set ttl 120
-cloudflare-set interval 300
-cloudflare-ddns-once
-cloudflare-ddns-start
-cloudflare-ddns-stop
-cloudflare-ddns-status
+.mjt cloudflare show
+.mjt cloudflare set token <token>
+.mjt cloudflare set zone <zone_id>
+.mjt cloudflare set record <record_id>
+.mjt cloudflare set name <domain>
+.mjt cloudflare set proxied false
+.mjt cloudflare set ttl 120
+.mjt cloudflare set interval 300
+.mjt cloudflare ddns once
+.mjt cloudflare ddns start
+.mjt cloudflare ddns stop
+.mjt cloudflare ddns status
 ```
 
 The DNS record ID can be detected automatically when possible.
 
-### SSH / SFTP Runtime Service
+## SSH / SFTP Runtime Service
 
 Mini Java Terminal includes an embedded SSH/SFTP service using Apache MINA SSHD.
 
@@ -122,25 +345,26 @@ SSH and SFTP share the same configured port.
 Supported commands:
 
 ```text
-ssh-show
-ssh-set host <host>
-ssh-set port <port>
-ssh-set user <username>
-ssh-set pass <password>
-ssh-set root <folder>
-ssh-start
-ssh-stop
-ssh-status
+.mjt ssh show
+.mjt ssh set host <host>
+.mjt ssh set port <port>
+.mjt ssh set user <username>
+.mjt ssh set pass <password>
+.mjt ssh set mode <real-tty|basic>
+.mjt ssh set root <folder>
+.mjt ssh start
+.mjt ssh stop
+.mjt ssh status
 ```
 
 SFTP compatibility aliases are also supported:
 
 ```text
-sftp-show
-sftp-set <key> <value>
-sftp-start
-sftp-stop
-sftp-status
+.mjt sftp show
+.mjt sftp set <key> <value>
+.mjt sftp start
+.mjt sftp stop
+.mjt sftp status
 ```
 
 Connect using SSH:
@@ -154,31 +378,31 @@ Connect using SFTP:
 ```bash
 sftp -P <port> <username>@<domain-or-ip>
 ```
-- **Note:** For windwos terminal. the tty still not working so mjt will use simple_terminal mode for default
 
-### Gateway Service
+Recommended local-only SSH setup:
+
+```text
+.mjt ssh stop
+.mjt ssh set host 127.0.0.1
+.mjt ssh set port 2022
+.mjt ssh set user <username>
+.mjt ssh set pass <password>
+.mjt ssh set root /home/container
+.mjt ssh start
+```
+
+## Gateway Service
 
 Mini Java Terminal includes an experimental Gateway Service.
 
 The Gateway Service is designed for controlled testing environments where one public TCP port is used as the main entry point.
 
-Gateway startup shows:
-
-```text
-Public TCP
-HTTP
-SSH/SFTP
-TCP
-TCP default
-TCP routes
-```
-
-Supported Gateway behavior:
+Gateway behavior:
 
 ```text
 HTTP request  -> handled by Gateway HTTP logic
-SSH/SFTP      -> proxied to a configured SSH/SFTP target
-TCP fallback  -> proxied to a manually configured TCP route
+SSH/SFTP      -> proxied to configured SSH/SFTP target
+TCP fallback  -> proxied to manually configured TCP route
 ```
 
 Example:
@@ -210,110 +434,106 @@ If `SERVER_PORT` is not available, the fallback port is:
 Supported Gateway commands:
 
 ```text
-gateway-help
-gateway-show
-gateway-set <key> <value>
-gateway-default <route|close>
-gateway-route-add <name> <host> <port>
-gateway-route-remove <name>
-gateway-route-enable <name>
-gateway-route-disable <name>
+.mjt gateway help
+.mjt gateway show
+.mjt gateway set <key> <value>
+.mjt gateway default <route|close>
+.mjt gateway route add <name> <host> <port>
+.mjt gateway route remove <name>
+.mjt gateway route enable <name>
+.mjt gateway route disable <name>
 ```
 
-### Gateway Core Examples
+## Gateway Core Examples
 
 Show Gateway help:
 
 ```text
-gateway-help
+.mjt gateway help
 ```
 
 Show Gateway config:
 
 ```text
-gateway-show
+.mjt gateway show
 ```
 
 Set a Gateway config value manually:
 
 ```text
-gateway-set <key> <value>
+.mjt gateway set <key> <value>
 ```
 
 Close TCP fallback:
 
 ```text
-gateway-default close
+.mjt gateway default close
 ```
 
-### HTTP Gateway Config Commands
+## HTTP Gateway Config Commands
 
 ```text
-gateway-set gateway.http.enabled true
-gateway-set gateway.http.enabled false
-gateway-set gateway.http.root /home/container/www
-gateway-set gateway.http.index index.html
-gateway-set gateway.http.spa true
-gateway-set gateway.http.spa false
+.mjt gateway set gateway.http.enabled true
+.mjt gateway set gateway.http.enabled false
+.mjt gateway set gateway.http.root /home/container/www
+.mjt gateway set gateway.http.index index.html
+.mjt gateway set gateway.http.spa true
+.mjt gateway set gateway.http.spa false
 ```
 
-### SSH / SFTP Gateway Proxy Commands
+## SSH / SFTP Gateway Proxy Commands
 
 ```text
-gateway-set gateway.ssh.enabled true
-gateway-set gateway.ssh.enabled false
-gateway-set gateway.ssh.host 127.0.0.1
-gateway-set gateway.ssh.port 2022
+.mjt gateway set gateway.ssh.enabled true
+.mjt gateway set gateway.ssh.enabled false
+.mjt gateway set gateway.ssh.host 127.0.0.1
+.mjt gateway set gateway.ssh.port 2022
 ```
 
-### Manual TCP Route Commands
+## Manual TCP Route Commands
 
 Add a Minecraft Java backend route:
 
 ```text
-gateway-route-add mc 127.0.0.1 25565
-gateway-default mc
-gateway-show
+.mjt gateway route add mc 127.0.0.1 25565
+.mjt gateway default mc
+.mjt gateway show
 ```
 
 Disable the default TCP backend:
 
 ```text
-gateway-default close
+.mjt gateway default close
 ```
 
 Disable a route:
 
 ```text
-gateway-route-disable mc
+.mjt gateway route disable mc
 ```
 
 Enable a route:
 
 ```text
-gateway-route-enable mc
+.mjt gateway route enable mc
 ```
 
 Remove a route:
 
 ```text
-gateway-route-remove mc
+.mjt gateway route remove mc
 ```
 
 Add a Velocity backend route:
 
 ```text
-gateway-route-add velocity 127.0.0.1 25577
-gateway-default velocity
+.mjt gateway route add velocity 127.0.0.1 25577
+.mjt gateway default velocity
 ```
 
 ## Gateway Configuration Example
 
-Gateway configuration is stored in:
-
-```text
-terminal-state.properties
-```
+Gateway configuration is stored in the MJT config folder.
 
 Example configuration:
 
@@ -361,29 +581,19 @@ Gateway public:
 
 SSH/SFTP internal:
 127.0.0.1:2022
+
+Minecraft internal:
+127.0.0.1:25565
 ```
 
-Recommended SSH/SFTP setup:
+Recommended Minecraft Gateway route:
 
 ```text
-ssh-stop
-ssh-set host 127.0.0.1
-ssh-set port 2022
-ssh-set user <username>
-ssh-set pass <password>
-ssh-set root /home/container
-ssh-start
+.mjt gateway route add mc 127.0.0.1 25565
+.mjt gateway default mc
 ```
 
-External users can connect through the public Gateway port:
-
-```bash
-ssh <username>@<domain-or-ip> -p <public_port>
-```
-
-```bash
-sftp -P <public_port> <username>@<domain-or-ip>
-```
+External users can connect to Minecraft through the public Gateway port when the default TCP route is set to `mc`.
 
 HTTP can also be accessed through the same public port:
 
@@ -396,29 +606,29 @@ http://<domain-or-ip>:<public_port>
 ```text
 mini-java-terminal/
 ├── src/
-│   └── terminal/
-│       ├── Main.java
-│       │
-│       ├── command/
-│       │   ├── CommandCenter.java
-│       │   └── CommandContext.java
-│       │
-│       ├── services/
-│       │   ├── CloudflareDnsService.java
-│       │   ├── GatewayService.java
-│       │   └── SshServerService.java
-│       │
-│       └── system/
-│           ├── ShellRunner.java
-│           ├── PublicIpService.java
-│           ├── LogService.java
-│           ├── StateStore.java
-│           ├── CommandGuard.java
-│           └── RuntimeConfig.java
+│   └── main/
+│       └── java/
+│           └── ...
+│               ├── Main.java
+│               ├── command/
+│               │   ├── CommandCenter.java
+│               │   └── CommandContext.java
+│               ├── services/
+│               │   ├── CloudflareDnsService.java
+│               │   ├── GatewayService.java
+│               │   └── SshServerService.java
+│               └── system/
+│                   ├── BuildInfo.java
+│                   ├── ShellRunner.java
+│                   ├── PublicIpService.java
+│                   ├── LogService.java
+│                   ├── StateStore.java
+│                   ├── CommandGuard.java
+│                   ├── TargetProcessService.java
+│                   ├── KeepAliveBotService.java
+│                   └── RuntimeConfig.java
 │
 ├── scripts/
-│   └── auto-build.ps1
-│
 ├── dist/
 ├── logs/
 ├── target/
@@ -441,7 +651,7 @@ services/
 → Feature-level services such as Cloudflare DDNS, Gateway routing, and SSH/SFTP.
 
 system/
-→ Core runtime utilities such as shell execution, logging, state storage, public IP checking, command blocking, and runtime configuration.
+→ Core runtime utilities such as shell execution, logging, state storage, public IP checking, command blocking, managed target processes, KeepAliveBot, and runtime configuration.
 
 scripts/
 → Development helper scripts.
@@ -460,6 +670,7 @@ logs/
 * A terminal or server panel that supports standard input/output
 * Public ports if direct SSH/SFTP access is needed
 * A public TCP port if Gateway mode is used
+* Minecraft server with `online-mode=false` if using KeepAliveBot
 
 ## Build
 
@@ -481,13 +692,9 @@ If using the auto-build script, the JAR is copied to:
 dist/server.jar
 ```
 
-Use `server.jar`, not the small thin JAR such as:
+Use `server.jar`, not the small thin JAR.
 
-```text
-mini-java-terminal-1.0.0.jar
-```
-
-The `server.jar` file is the shaded JAR and includes required dependencies such as Apache MINA SSHD.
+The `server.jar` file is the shaded JAR and includes required dependencies.
 
 ## Run
 
@@ -501,7 +708,7 @@ The app may generate:
 
 ```text
 logs/
-terminal-state.properties
+mjt-config/
 ssh-hostkey.ser
 ```
 
@@ -511,10 +718,9 @@ ssh-hostkey.ser
 * HTTP, SSH/SFTP proxying, and manual TCP fallback are part of the Gateway direction.
 * Manual TCP route support is experimental and depends on the target service.
 * Minecraft Java routing is experimental.
+* KeepAliveBot is designed for `online-mode=false` servers.
 * UDP routing is not included in this version.
-* This version still uses `terminal-state.properties`.
-* The larger `mjt-config/` refactor is not included in this release.
-* The stop command is still `shutdown-terminal` in this release.
+* Use `.mjt --version` to check the current runtime version.
 
 ## Security Notice
 

@@ -1,4 +1,4 @@
-package terminal.services;
+package main.java.mjt.services.gateway;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,8 +19,8 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import terminal.system.LogService;
-import terminal.system.StateStore;
+import main.java.mjt.system.LogService;
+import main.java.mjt.system.StateStore;
 
 public class GatewayService {
     private static final String GREEN = "\u001B[32m";
@@ -43,29 +43,30 @@ public class GatewayService {
 
     public void start() {
         if (gatewayRunning) {
-            System.out.println(YELLOW + "[Gateway] Đang chạy rồi." + RESET);
+            System.out.println(YELLOW + "[Gateway] Already running." + RESET);
             return;
         }
 
+        String publicTcpHost = getPublicTcpHost();
         int publicTcpPort = getPublicTcpPort();
-
+            
         try {
             publicServerSocket = new ServerSocket();
             publicServerSocket.setReuseAddress(true);
-            publicServerSocket.bind(new InetSocketAddress("0.0.0.0", publicTcpPort));
+            publicServerSocket.bind(new InetSocketAddress(publicTcpHost, publicTcpPort));
 
             gatewayRunning = true;
 
-            printGatewayStartup(publicTcpPort);
+            printGatewayStartup(publicTcpHost, publicTcpPort);
 
             Thread acceptThread = new Thread(this::acceptLoop, "mjt-gateway-accept-loop");
             acceptThread.setDaemon(false);
             acceptThread.start();
 
-            logService.write("[GATEWAY START] 0.0.0.0:" + publicTcpPort + "\n");
+            logService.write("[GATEWAY START] " + publicTcpHost + ":" + publicTcpPort + "\n");
 
         } catch (Exception e) {
-            System.out.println(RED + "[Gateway] Start lỗi: " + e.getMessage() + RESET);
+            System.out.println(RED + "[Gateway] Start error: " + e.getMessage() + RESET);
 
             try {
                 logService.write("[GATEWAY START ERROR] " + e.getMessage() + "\n");
@@ -95,11 +96,11 @@ public class GatewayService {
 
             } catch (SocketException e) {
                 if (gatewayRunning) {
-                    System.out.println(RED + "[Gateway] Socket lỗi: " + e.getMessage() + RESET);
+                    System.out.println(RED + "[Gateway] Socket error: " + e.getMessage() + RESET);
                 }
 
             } catch (Exception e) {
-                System.out.println(RED + "[Gateway] Accept lỗi: " + e.getMessage() + RESET);
+                System.out.println(RED + "[Gateway] Accept error: " + e.getMessage() + RESET);
             }
         }
     }
@@ -121,7 +122,7 @@ public class GatewayService {
                 firstLength = clientInput.read(firstBytes);
 
             } catch (SocketTimeoutException timeout) {
-                // SSH client đôi khi chờ server gửi banner trước.
+                // SSH client sometimes waits for server to send banner first.
                 routeToSshService(clientSocket, new byte[0], 0);
                 return;
             }
@@ -311,7 +312,7 @@ public class GatewayService {
 
             Path target = webRoot.resolve(cleanPath).normalize();
 
-            // Chặn path traversal kiểu ../../...
+            // Block path traversal like ../../...
             if (!target.startsWith(webRoot)) {
                 return null;
             }
@@ -603,32 +604,58 @@ public class GatewayService {
         }
     }
 
-    private void printGatewayStartup(int publicTcpPort) throws IOException {
+    private void printGatewayStartup(String publicTcpHost, int publicTcpPort) throws IOException {
         reloadStateConfigQuietly();
 
-        System.out.println(GREEN + "[Gateway] Started." + RESET);
-        System.out.println("Public TCP : 0.0.0.0:" + publicTcpPort);
-        System.out.println("HTTP       : " + getConfigBoolean("gateway.http.enabled", true));
-        System.out.println("SSH/SFTP   : "
-                + getConfigString("gateway.ssh.host", "127.0.0.1")
-                + ":"
-                + getConfigInt("gateway.ssh.port", 2022));
-        System.out.println("TCP        : " + getConfigBoolean("gateway.tcp.enabled", true));
-        System.out.println("TCP default: " + getConfigString("gateway.tcp.default", "close"));
+        boolean httpEnabled = getConfigBoolean("gateway.http.enabled", true);
+        boolean sshEnabled = getConfigBoolean("gateway.ssh.enabled", true);
+        boolean tcpEnabled = getConfigBoolean("gateway.tcp.enabled", true);
+
+        String httpRoot = getConfigString("gateway.http.root", "www");
+        String httpIndex = getConfigString("gateway.http.index", "index.html");
+        boolean httpSpa = getConfigBoolean("gateway.http.spa", false);
+
+        String sshHost = getConfigString("gateway.ssh.host", "127.0.0.1");
+        int sshPort = getConfigInt("gateway.ssh.port", 2022);
+
+        String tcpDefault = getConfigString("gateway.tcp.default", "close");
+
+        System.out.println(GREEN + "==================================================" + RESET);
+        System.out.println(GREEN + " Gateway Service" + RESET);
+        System.out.println(GREEN + "==================================================" + RESET);
+
+        System.out.println(CYAN + " Public TCP  : " + publicTcpHost + ":" + publicTcpPort + RESET);
+
+        System.out.println();
+        System.out.println(YELLOW + " HTTP Static Files" + RESET);
+        System.out.println("  Status     : " + formatStatus(httpEnabled));
+        System.out.println("  Root       : " + httpRoot);
+        System.out.println("  Index      : " + httpIndex);
+        System.out.println("  SPA mode   : " + formatStatus(httpSpa));
+
+        System.out.println();
+        System.out.println(YELLOW + " SSH / SFTP Proxy" + RESET);
+        System.out.println("  Status     : " + formatStatus(sshEnabled));
+        System.out.println("  Target     : " + sshHost + ":" + sshPort);
+
+        System.out.println();
+        System.out.println(YELLOW + " Manual TCP Routes" + RESET);
+        System.out.println("  Status     : " + formatStatus(tcpEnabled));
+        System.out.println("  Default    : " + tcpDefault);
 
         List<TcpRoute> routes = readAllManualTcpRoutes();
 
         if (routes.isEmpty()) {
-            System.out.println("TCP routes : none");
+            System.out.println("  Routes     : none");
         } else {
-            System.out.println("TCP routes :");
+            System.out.println("  Routes     :");
 
             for (TcpRoute route : routes) {
-                System.out.println("  - "
+                System.out.println("    - "
                         + route.name
-                        + " enabled="
-                        + route.enabled
-                        + " target="
+                        + " | "
+                        + formatStatus(route.enabled)
+                        + " | "
                         + route.host
                         + ":"
                         + route.port);
@@ -638,14 +665,46 @@ public class GatewayService {
         System.out.println();
     }
 
-    private int getPublicTcpPort() {
-        String value = System.getenv().getOrDefault("SERVER_PORT", "4848");
+    private String getPublicTcpHost() {
+        String host = getConfigString("gateway.public.host", "127.0.0.1");
 
-        try {
-            return Integer.parseInt(value.trim());
-        } catch (Exception e) {
+        if (host.isBlank()) {
+            return "127.0.0.1";
+        }
+
+        return host;
+    }
+
+    private int getPublicTcpPort() {
+        String configured = getConfigString("gateway.public.port", "8080");
+    
+        if (!configured.equalsIgnoreCase("auto")) {
+            try {
+                int port = Integer.parseInt(configured.trim());
+            
+                if (port > 0 && port <= 65535) {
+                    return port;
+                }
+            
+            } catch (Exception ignored) {
+            }
+        
             return 4848;
         }
+    
+        String value = System.getenv().getOrDefault("SERVER_PORT", "8080");
+    
+        try {
+            int port = Integer.parseInt(value.trim());
+        
+            if (port > 0 && port <= 65535) {
+                return port;
+            }
+        
+        } catch (Exception ignored) {
+        }
+    
+        return 4848;
     }
 
     private void reloadStateConfigQuietly() {
@@ -713,5 +772,10 @@ public class GatewayService {
             this.host = host;
             this.port = port;
         }
+    }
+
+
+    private String formatStatus(boolean enabled) {
+        return enabled ? "ON" : "OFF";
     }
 }

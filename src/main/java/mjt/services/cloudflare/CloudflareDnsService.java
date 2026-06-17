@@ -1,4 +1,4 @@
-package terminal.services;
+package main.java.mjt.services.cloudflare;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -10,9 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import terminal.system.LogService;
-import terminal.system.PublicIpService;
-import terminal.system.StateStore;
+import main.java.mjt.system.LogService;
+import main.java.mjt.system.PublicIpService;
+import main.java.mjt.system.StateStore;
 
 public class CloudflareDnsService {
     private static final String RESET = "\u001B[0m";
@@ -47,7 +47,7 @@ public class CloudflareDnsService {
         String realKey = normalizeKey(key);
 
         if (realKey == null) {
-            System.out.println(RED + "[cloudflare] Key không hợp lệ: " + key + RESET);
+            System.out.println(RED + "[cloudflare] Invalid key: " + key + RESET);
             printSetHelp();
             return;
         }
@@ -58,7 +58,7 @@ public class CloudflareDnsService {
 
         if (realKey.equals("cloudflare.ttl") || realKey.equals("cloudflare.intervalSeconds")) {
             if (!isPositiveNumber(value)) {
-                System.out.println(RED + "[cloudflare] Giá trị phải là số dương." + RESET);
+                System.out.println(RED + "[cloudflare] Value must be a positive number." + RESET);
                 return;
             }
         }
@@ -66,9 +66,9 @@ public class CloudflareDnsService {
         stateStore.set(realKey, value);
 
         if (realKey.equals("cloudflare.apiToken")) {
-            System.out.println(GREEN + "[cloudflare] Đã lưu token: " + stateStore.maskSecret(value) + RESET);
+            System.out.println(GREEN + "[cloudflare] Saved token: " + stateStore.maskSecret(value) + RESET);
         } else {
-            System.out.println(GREEN + "[cloudflare] Đã lưu " + realKey + " = " + value + RESET);
+            System.out.println(GREEN + "[cloudflare] Saved " + realKey + " = " + value + RESET);
         }
 
         logService.write("[cloudflare SET] " + realKey + "\n");
@@ -114,7 +114,7 @@ public class CloudflareDnsService {
             System.out.println("Record       : " + recordName);
 
             if (currentIp.equals(lastIp)) {
-                System.out.println(GREEN + "[cloudflare-DDNS] IP không đổi, bỏ qua cập nhật." + RESET);
+                System.out.println(GREEN + "[cloudflare-DDNS] IP unchanged, skipping update." + RESET);
                 logService.write("[cloudflare-DDNS] IP unchanged: " + currentIp + "\n");
                 return;
             }
@@ -152,13 +152,13 @@ public class CloudflareDnsService {
                 stateStore.set("cloudflare.lastIp", currentIp);
                 lastUpdatedIp = currentIp;
 
-                System.out.println(GREEN + "[cloudflare-DDNS] Đã cập nhật DNS thành công." + RESET);
+                System.out.println(GREEN + "[cloudflare-DDNS] DNS updated successfully." + RESET);
                 System.out.println(GREEN + recordName + " -> " + currentIp + RESET);
 
                 logService.write("[cloudflare-DDNS SUCCESS] " + recordName + " -> " + currentIp + "\n");
 
             } else {
-                System.out.println(RED + "[cloudflare-DDNS] Cập nhật thất bại. HTTP "
+                System.out.println(RED + "[cloudflare-DDNS] Update failed. HTTP "
                         + response.statusCode()
                         + RESET);
 
@@ -169,7 +169,7 @@ public class CloudflareDnsService {
             }
 
         } catch (Exception e) {
-            System.out.println(RED + "[cloudflare-DDNS] Lỗi: " + e.getMessage() + RESET);
+            System.out.println(RED + "[cloudflare-DDNS] Error: " + e.getMessage() + RESET);
 
             try {
                 logService.write("[cloudflare-DDNS ERROR] " + e.getMessage() + "\n");
@@ -180,7 +180,7 @@ public class CloudflareDnsService {
 
     public void startLoop() {
         if (running) {
-            System.out.println(YELLOW + "[cloudflare-DDNS] Auto DDNS đang chạy rồi." + RESET);
+            System.out.println(YELLOW + "[cloudflare-DDNS] Auto DDNS is already running." + RESET);
             return;
         }
 
@@ -250,15 +250,15 @@ public class CloudflareDnsService {
 
     private void validateConfig() throws IOException {
         if (stateStore.get("cloudflare.apiToken").isBlank()) {
-            throw new IOException("Thiếu cloudflare.apiToken. Dùng: cloudflare-set token <token>");
+            throw new IOException("Missing cloudflare.apiToken. Use: cloudflare-set token <token>");
         }
 
         if (stateStore.get("cloudflare.zoneId").isBlank()) {
-            throw new IOException("Thiếu cloudflare.zoneId. Dùng: cloudflare-set zone <zone_id>");
+            throw new IOException("Missing cloudflare.zoneId. Use: cloudflare-set zone <zone_id>");
         }
 
         if (stateStore.get("cloudflare.recordName").isBlank()) {
-            throw new IOException("Thiếu cloudflare.recordName. Dùng: cloudflare-set name <domain>");
+            throw new IOException("Missing cloudflare.recordName. Use: cloudflare-set name <domain>");
         }
 
         if (stateStore.get("cloudflare.proxied").isBlank()) {
@@ -368,7 +368,7 @@ public class CloudflareDnsService {
     }
 
     private void printSetHelp() {
-        System.out.println(YELLOW + "Các key hợp lệ:" + RESET);
+        System.out.println(YELLOW + "Valid keys:" + RESET);
         System.out.println("cloudflare-set token <token>");
         System.out.println("cloudflare-set zone <zone_id>");
         System.out.println("cloudflare-set record <record_id>");
@@ -392,7 +392,7 @@ private String ensureDnsRecordId(
     if (!existingRecordId.isBlank()) {
         stateStore.set("cloudflare.recordId", existingRecordId);
 
-        System.out.println(GREEN + "[cloudflare-DDNS] Đã tự tìm thấy recordId: "
+        System.out.println(GREEN + "[cloudflare-DDNS] Found recordId: "
                 + existingRecordId + RESET);
 
         logService.write("[cloudflare-DDNS] Found recordId: " + existingRecordId + "\n");
@@ -411,7 +411,7 @@ private String ensureDnsRecordId(
 
     stateStore.set("cloudflare.recordId", createdRecordId);
 
-    System.out.println(GREEN + "[cloudflare-DDNS] Đã tự tạo DNS record mới." + RESET);
+    System.out.println(GREEN + "[cloudflare-DDNS] Created new DNS record." + RESET);
     System.out.println(GREEN + "[cloudflare-DDNS] recordId: " + createdRecordId + RESET);
 
     logService.write("[cloudflare-DDNS] Created recordId: " + createdRecordId + "\n");
@@ -446,7 +446,7 @@ private String findDnsRecordId(
     );
 
     if (response.statusCode() < 200 || response.statusCode() >= 300) {
-        throw new IOException("Không thể list DNS records. HTTP " + response.statusCode());
+        throw new IOException("Cannot list DNS records. HTTP " + response.statusCode());
     }
 
     String body = response.body();
@@ -493,7 +493,7 @@ private String findDnsRecordId(
         );
     
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("Không thể tạo DNS record. HTTP "
+            throw new IOException("Cannot create DNS record. HTTP "
                     + response.statusCode()
                     + " | "
                     + response.body());
@@ -508,7 +508,7 @@ private String findDnsRecordId(
         String recordId = extractFirstRecordId(body);
     
         if (recordId.isBlank()) {
-            throw new IOException("Tạo DNS record thành công nhưng không lấy    được recordId.");
+            throw new IOException("DNS record created successfully but could not retrieve recordId.");
         }
     
         return recordId;

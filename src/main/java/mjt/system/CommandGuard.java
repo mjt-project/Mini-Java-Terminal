@@ -1,4 +1,4 @@
-package terminal.system;
+package main.java.mjt.system;
 
 import java.io.IOException;
 
@@ -17,14 +17,14 @@ public class CommandGuard {
         String lower = command.toLowerCase().trim();
 
         if (lower.equals("su") || lower.startsWith("su ")) {
-            System.out.println(RED + "Không chạy su trong panel console này được." + RESET);
-            System.out.println(YELLOW + "Lý do: su cần terminal tương tác thật và password root." + RESET);
+            System.out.println(RED + "Cannot run su in this console panel." + RESET);
+            System.out.println(YELLOW + "Reason: su requires a real interactive terminal and root password." + RESET);
             logService.write("[BLOCKED] su command\n");
             return true;
         }
 
         if (lower.equals("sudo") || lower.startsWith("sudo ")) {
-            System.out.println(RED + "Không dùng sudo nếu host chưa cấp quyền sudo." + RESET);
+            System.out.println(RED + "Do not use sudo if the host has not granted sudo permissions." + RESET);
             logService.write("[BLOCKED] sudo command\n");
             return true;
         }
@@ -35,7 +35,7 @@ public class CommandGuard {
                 || lower.equals("top")
                 || lower.equals("htop")) {
 
-            System.out.println(RED + "Lệnh này cần terminal tương tác thật nên dễ treo trong panel." + RESET);
+            System.out.println(RED + "This command requires a real interactive terminal and may hang in this panel." + RESET);
             logService.write("[BLOCKED] interactive command\n");
             return true;
         }

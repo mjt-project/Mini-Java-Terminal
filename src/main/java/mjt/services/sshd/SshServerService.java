@@ -1,4 +1,4 @@
-package terminal.services;
+package main.java.mjt.services.sshd;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -24,10 +24,10 @@ import org.apache.sshd.server.command.Command;
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
 import org.apache.sshd.sftp.server.SftpSubsystemFactory;
 
-import terminal.command.CommandCenter;
-import terminal.system.CommandGuard;
-import terminal.system.LogService;
-import terminal.system.StateStore;
+import main.java.mjt.command.CommandCenter;
+import main.java.mjt.system.CommandGuard;
+import main.java.mjt.system.LogService;
+import main.java.mjt.system.StateStore;
 
 public class SshServerService {
     private static final String RESET = "\u001B[0m";
@@ -54,6 +54,7 @@ public class SshServerService {
         this.commandGuard = commandGuard;
     }
 
+    
     public void setCommandCenter(CommandCenter commandCenter) {
         this.commandCenter = commandCenter;
     }
@@ -62,7 +63,7 @@ public class SshServerService {
         String realKey = normalizeKey(key);
 
         if (realKey == null) {
-            System.out.println(RED + "[SSH] Key không hợp lệ: " + key + RESET);
+            System.out.println(RED + "[SSH] Invalid key: " + key + RESET);
             printSetHelp();
             return;
         }
@@ -72,22 +73,34 @@ public class SshServerService {
                 int port = Integer.parseInt(value.trim());
 
                 if (port <= 0 || port > 65535) {
-                    System.out.println(RED + "[SSH] Port không hợp lệ." + RESET);
+                    System.out.println(RED + "[SSH] Invalid port." + RESET);
                     return;
                 }
 
             } catch (NumberFormatException e) {
-                System.out.println(RED + "[SSH] Port phải là số." + RESET);
+                System.out.println(RED + "[SSH] Port must be a number." + RESET);
                 return;
             }
+        }
+
+        // Terminal mode normalization check
+        if (realKey.equals("ssh.terminal.mode")) {
+            String normalizedMode = normalizeTerminalMode(value);
+                
+            if (normalizedMode == null) {
+                System.out.println(RED + "[SSH] Invalid terminal mode: " + value + RESET);
+                System.out.println(YELLOW + "Valid modes: real-tty, basic" + RESET);
+                return;
+            }
+            value = normalizedMode;
         }
 
         stateStore.set(realKey, value);
 
         if (realKey.equals("ssh.password")) {
-            System.out.println(GREEN + "[SSH] Đã lưu password: " + stateStore.maskSecret(value) + RESET);
+            System.out.println(GREEN + "[SSH] Saved password: " + stateStore.maskSecret(value) + RESET);
         } else {
-            System.out.println(GREEN + "[SSH] Đã lưu " + realKey + " = " + value + RESET);
+            System.out.println(GREEN + "[SSH] Saved " + realKey + " = " + value + RESET);
         }
 
         logService.write("[SSH SET] " + realKey + "\n");
@@ -100,23 +113,24 @@ public class SshServerService {
         System.out.println("ssh.username = " + stateStore.get("ssh.username", "(empty)"));
         System.out.println("ssh.password = " + stateStore.maskSecret(stateStore.get("ssh.password", "")));
         System.out.println("ssh.root     = " + stateStore.get("ssh.root", "(empty)"));
+        System.out.println("ssh.terminal.mode = " + stateStore.get("ssh.terminal.mode", "basic"));
     }
 
     public void start() {
         if (running) {
-            System.out.println(YELLOW + "[SSH] Server đang chạy rồi." + RESET);
+            System.out.println(YELLOW + "[SSH] Server is already running." + RESET);
             return;
         }
 
         try {
             validateConfig();
 
+            String terminalMode = stateStore.get("ssh.terminal.mode", "basic").trim().toLowerCase();
             String host = stateStore.get("ssh.host", "0.0.0.0").trim();
             int port = stateStore.getInt("ssh.port", 0);
             String username = stateStore.get("ssh.username").trim();
             String password = stateStore.get("ssh.password").trim();
             Path root = Paths.get(stateStore.get("ssh.root").trim()).toAbsolutePath().normalize();
-
             Files.createDirectories(root);
 
             Path hostKey = Paths.get("ssh-hostkey.ser").toAbsolutePath().normalize();
@@ -131,7 +145,7 @@ public class SshServerService {
                     username.equals(inputUser) && password.equals(inputPassword)
             );
 
-            // SFTP chạy chung SSH server
+            // SFTP runs on the same SSH server
             sshServer.setSubsystemFactories(Collections.singletonList(
                     new SftpSubsystemFactory.Builder().build()
             ));
@@ -140,17 +154,24 @@ public class SshServerService {
             sshServer.setFileSystemFactory(new VirtualFileSystemFactory(root));
 
             // SSH shell
-            // Linux/container: real terminal with PTY helper fallback.
+            // Linux/container: real terminal with PTY helper fallback
+            if (terminalMode.equals("basic")) {
+                sshServer.setShellFactory(channel -> new SimpleSshShell(root));
+            } 
+            else if (terminalMode.equals("real-tty")) {
+                sshServer.setShellFactory(channel -> new RealTerminalShell(root));
+            }
+
             // Windows host: use simple line-based shell because Windows cmd.exe does not provide a real PTY here.
             if (isWindowsHost()) {
                 sshServer.setShellFactory(channel -> new SimpleSshShell(root));
-            } else {
-                sshServer.setShellFactory(channel -> new RealTerminalShell(root));
             }
+
             sshServer.start();
             running = true;
 
             System.out.println(GREEN + "[SSH] Server started." + RESET);
+            System.out.println("Terminal SSH Mode : " + terminalMode);
             System.out.println("Host : " + host);
             System.out.println("Port : " + port);
             System.out.println("User : " + username);
@@ -164,7 +185,7 @@ public class SshServerService {
             logService.write("[SSH START] host=" + host + " port=" + port + " root=" + root + "\n");
 
         } catch (Exception e) {
-            System.out.println(RED + "[SSH] Start lỗi: " + e.getMessage() + RESET);
+            System.out.println(RED + "[SSH] Start error: " + e.getMessage() + RESET);
 
             try {
                 logService.write("[SSH START ERROR] " + e.getMessage() + "\n");
@@ -175,7 +196,7 @@ public class SshServerService {
 
     public void stop() {
         if (!running || sshServer == null) {
-            System.out.println(YELLOW + "[SSH] Server chưa chạy." + RESET);
+            System.out.println(YELLOW + "[SSH] Server is not running." + RESET);
             return;
         }
 
@@ -187,7 +208,7 @@ public class SshServerService {
             logService.write("[SSH STOP]\n");
 
         } catch (IOException e) {
-            System.out.println(RED + "[SSH] Stop lỗi: " + e.getMessage() + RESET);
+            System.out.println(RED + "[SSH] Stop error: " + e.getMessage() + RESET);
         }
     }
 
@@ -199,26 +220,21 @@ public class SshServerService {
         System.out.println("Root    : " + stateStore.get("ssh.root", "none"));
     }
 
-    private boolean isWindowsHost() {
-        String osName = System.getProperty("os.name", "").toLowerCase();
-        return osName.contains("win");
-    }
-
     private void validateConfig() throws IOException {
         if (stateStore.get("ssh.port").isBlank()) {
-            throw new IOException("Thiếu ssh.port. Dùng: ssh-set port <port>");
+            throw new IOException("Missing ssh.port. Use: ssh-set port <port>");
         }
 
         if (stateStore.get("ssh.username").isBlank()) {
-            throw new IOException("Thiếu ssh.username. Dùng: ssh-set user <username>");
+            throw new IOException("Missing ssh.username. Use: ssh-set user <username>");
         }
 
         if (stateStore.get("ssh.password").isBlank()) {
-            throw new IOException("Thiếu ssh.password. Dùng: ssh-set pass <password>");
+            throw new IOException("Missing ssh.password. Use: ssh-set pass <password>");
         }
 
         if (stateStore.get("ssh.root").isBlank()) {
-            throw new IOException("Thiếu ssh.root. Dùng: ssh-set root <folder>");
+            throw new IOException("Missing ssh.root. Use: ssh-set root <folder>");
         }
     }
 
@@ -256,18 +272,35 @@ public class SshServerService {
             case "sftp.root":
                 return "ssh.root";
 
+            case "mode":
+            case "terminal-mode":
+            case "terminal_mode":
+            case "terminal.mode":
+            case "ssh.mode":
+            case "ssh.terminal.mode":
+            case "ssh.terminal-mode":
+            case "ssh.terminal_mode":
+                return "ssh.terminal.mode";
+
             default:
                 return null;
         }
     }
 
     private void printSetHelp() {
-        System.out.println(YELLOW + "Các key hợp lệ:" + RESET);
+        System.out.println(YELLOW + "Valid keys:" + RESET);
         System.out.println("ssh-set host 0.0.0.0");
         System.out.println("ssh-set port <public_port>");
         System.out.println("ssh-set user <username>");
         System.out.println("ssh-set pass <password>");
         System.out.println("ssh-set root /home/container/uploads");
+        System.out.println("ssh-set mode real-tty");
+        System.out.println("ssh-set mode basic");
+    }
+
+    private boolean isWindowsHost() {
+        String osName = System.getProperty("os.name", "").toLowerCase();
+        return osName.contains("win");
     }
 
     private class SimpleSshShell implements Command {
@@ -346,9 +379,11 @@ public class SshServerService {
                             true
                     )
             ) {
+
+                String prefix = stateStore.get("app.command.prefix", ".").trim();
                 writeLine(out, "Mini Java Terminal SSH");
-                writeLine(out, "Type 'help' for commands, 'exit' to close.");
-                writeLine(out, "");
+                writeLine(out, "Type '" + prefix + "help' for MJT commands.");
+                writeLine(out, "Type 'exit' to close.");
             
                 String line;
             
@@ -376,11 +411,6 @@ public class SshServerService {
                         break;
                     }
 
-                    if (line.equalsIgnoreCase("ssh-help")) {
-                        printSshHelp(out);
-                        continue;
-                    }
-
                     if (line.equalsIgnoreCase("pwd")) {
                         writeLine(out, currentDir.toString());
                         continue;
@@ -389,7 +419,7 @@ public class SshServerService {
                     if (line.equalsIgnoreCase("ls") || line.equalsIgnoreCase("dir")) {
                         printDirectoryList(out, false);
                         continue;
-                    }                   
+                    }
 
                     if (line.equalsIgnoreCase("ll") || line.equalsIgnoreCase("ls -l")) {
                         printDirectoryList(out, true);
@@ -412,12 +442,23 @@ public class SshServerService {
                         continue;
                     }
 
-                    if (isMjtCommand(line)) {
-                        String output = runMjtCommandAndCaptureOutput(line);
+                    /*
+                     * MJT Command
+                     *
+                     * Example:
+                     * .help
+                     * .gateway-show
+                     * .ssh-show
+                     */
+                    if (!prefix.isBlank() && line.startsWith(prefix)) {
+                    
+                        String output =
+                                runMjtCommandAndCaptureOutput(line);
                     
                         for (String outputLine : output.split("\\R")) {
                             writeLine(out, outputLine);
                         }
+                    
                         continue;
                     }
                     
@@ -490,7 +531,7 @@ public class SshServerService {
                     continue;
                 }
             
-                // Bỏ qua một số escape key đơn giản như mũi tên
+                // Skip simple escape keys like arrow keys
                 if (ch == 27) {
                     continue;
                 }
@@ -500,18 +541,21 @@ public class SshServerService {
             }
         }
 
-        private void printSshHelp(PrintWriter out) {
-            writeLine(out, "Available SSH commands:");
-            writeLine(out, "  help        - Show help");
-            writeLine(out, "  pwd         - Show current directory");
-            writeLine(out, "  ls          - List files");
-            writeLine(out, "  ll          - List files with size");
-            writeLine(out, "  cd <folder> - Change directory inside ssh.root");
-            writeLine(out, "  clear       - Clear screen");
-            writeLine(out, "  exit        - Close SSH session");
+        private void printSshHelp(
+                PrintWriter out,
+                String prefix
+        ) {
+            writeLine(out, "SSH Built-in Commands:");
+            writeLine(out, "  pwd");
+            writeLine(out, "  ls");
+            writeLine(out, "  ll");
+            writeLine(out, "  cd");
+            writeLine(out, "  clear");
+            writeLine(out, "  exit");
             writeLine(out, "");
-            writeLine(out, "Other commands are executed by the host shell.");
-        }
+            writeLine(out, "MJT Commands:");
+            writeLine(out, "  " + prefix + "help");
+        }   
 
         private void handleCd(String target, PrintWriter out, PrintWriter err) {
             try {
@@ -650,23 +694,9 @@ public class SshServerService {
             }
         }
 
-        private boolean isMjtCommand(String line) {
-            String lower = line.toLowerCase();
-        
-            return lower.equals("help")
-                    || lower.equals("public-ip")
-                    || lower.equals("timeout")
-                    || lower.startsWith("timeout ")
-                    || lower.startsWith("cloudflare-")
-                    || lower.startsWith("ssh-")
-                    || lower.startsWith("sftp-")
-                    || lower.startsWith("web-")
-                    || lower.equals("shutdown-terminal");
-        }
-
         private synchronized String runMjtCommandAndCaptureOutput(String command) {
             if (commandCenter == null) {
-                return "[SSH] CommandCenter chưa được gắn vào SshServerService.";
+                return "[SSH] CommandCenter has not been attached to SshServerService.";
             }
         
             PrintStream originalOut = System.out;
@@ -1036,4 +1066,33 @@ public class SshServerService {
         }
     }
 }
+
+    private String normalizeTerminalMode(String value) {
+        if (value == null) {
+            return null;
+        }
+    
+        String mode = value.trim().toLowerCase();
+    
+        switch (mode) {
+            case "basic":
+            case "simple":
+            case "simple-terminal":
+            case "simple_terminal":
+            case "line":
+            case "line-based":
+                return "basic";
+        
+            case "real":
+            case "real-tty":
+            case "real_tty":
+            case "real-terminal":
+            case "real_terminal":
+            case "pty":
+                return "real-tty";
+        
+            default:
+                return null;
+        }
+    }
 }

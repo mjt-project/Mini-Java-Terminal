@@ -1,125 +1,67 @@
-## What's Changed
+# MJT v2.5.0
 
-### New
+This release adds the new KeepAliveBot feature for Minecraft servers.
 
-* Released version `2.3.27`.
-* Added experimental Gateway Service for single-port TCP routing.
-* Added Gateway startup information showing:
+KeepAliveBot is an offline-mode Minecraft bot that can join the server as a normal player and help keep the server active when enabled. This is useful for hosting environments that support renew / keep-alive behavior.
 
-  * Public TCP
-  * HTTP status
-  * SSH/SFTP target
-  * TCP status
-  * TCP default route
-  * TCP route list
-* Added Gateway command group to the main `help` output.
-* Added dedicated `gateway-help` command.
-* Added Gateway core commands:
+Main new feature:
 
-  * `gateway-help`
-  * `gateway-show`
-  * `gateway-set <key> <value>`
-  * `gateway-default <route|close>`
-* Added manual TCP route commands:
+* Added KeepAliveBot service
+* Added offline-mode bot login
+* Added bot reconnect loop
+* Added bot configuration commands
+* Added bot status display
+* Added support for using the bot with local Minecraft server address
 
-  * `gateway-route-add <name> <host> <port>`
-  * `gateway-route-remove <name>`
-  * `gateway-route-enable <name>`
-  * `gateway-route-disable <name>`
-* Added Gateway HTTP config commands:
+Recommended for:
 
-  * `gateway-set gateway.http.enabled true`
-  * `gateway-set gateway.http.enabled false`
-  * `gateway-set gateway.http.root /home/container/www`
-  * `gateway-set gateway.http.index index.html`
-  * `gateway-set gateway.http.spa true`
-  * `gateway-set gateway.http.spa false`
-* Added Gateway SSH/SFTP proxy config commands:
+* Minecraft servers with online-mode=false
+* Hosts that allow renew / keep-alive behavior
+* Servers that need one persistent bot player to stay active
 
-  * `gateway-set gateway.ssh.enabled true`
-  * `gateway-set gateway.ssh.enabled false`
-  * `gateway-set gateway.ssh.host 127.0.0.1`
-  * `gateway-set gateway.ssh.port 2022`
-* Added clearer SFTP compatibility alias section in `help`.
+New commands:
+.mjt bot show
+.mjt bot status
+.mjt bot start
+.mjt bot stop
+.mjt bot set enabled true
+.mjt bot set host 127.0.0.1
+.mjt bot set port 25565
+.mjt bot set username MJT_Renew
+.mjt bot set reconnect 30
 
-### Changed
+Basic setup:
+.mjt bot set enabled true
+.mjt bot set host 127.0.0.1
+.mjt bot set port 25565
+.mjt bot set username MJT_Renew
+.mjt bot set reconnect 60
+.mjt bot start
 
-* Improved the main `help` display.
-* Reorganized `help` output into clearer sections:
+Expected behavior:
 
-  * Terminal Runtime
-  * Cloudflare DDNS
-  * SSH / SFTP Server
-  * SFTP Compatibility Aliases
-  * Gateway
-  * Safety
-  * Commands not recommended
-* Moved detailed Gateway usage into `gateway-help`.
-* Improved Gateway command examples for Minecraft Java and Velocity-style local TCP routes.
-* Improved command readability by aligning command names and descriptions.
-* Kept `shutdown-terminal` as the current official stop command for this release.
-* Kept `terminal-state.properties` as the current runtime config file for this release.
+* Bot connects to 127.0.0.1:25565
+* Bot joins as MJT_Renew
+* If disconnected, bot waits and reconnects automatically
+* Bot can be stopped manually with .mjt bot stop
 
-### Fixed
+Minecraft server requirement:
+online-mode=false
 
-* Fixed confusing `help` command output by separating command groups.
-* Fixed Gateway command documentation being mixed into the main help too densely.
-* Fixed Gateway help readability by separating:
+Recommended server config:
+server-ip=127.0.0.1
+server-port=25565
+online-mode=false
 
-  * Gateway Core
-  * HTTP Static File Service
-  * SSH / SFTP Gateway Proxy
-  * Manual TCP Routes
-  * Examples
-* Fixed unclear TCP fallback usage by documenting `gateway-default close`.
-* Fixed unclear route examples by adding direct examples for:
+If the bot name is already online:
 
-  * `mc`
-  * `velocity`
-* Fix windwos ssh connect dose not show correctly.
+* The server may return duplicate_login
+* Change the bot username or stop the old MJT process first
 
-### Gateway Commands
+Example:
+.mjt bot set username MJT_Renew2
+.mjt bot stop
+.mjt bot start
 
-```text
-gateway-help
-gateway-show
-gateway-set <key> <value>
-gateway-default <route|close>
-gateway-route-add <name> <host> <port>
-gateway-route-remove <name>
-gateway-route-enable <name>
-gateway-route-disable <name>
-```
-
-### Gateway Help Sections
-
-```text
-Gateway Core
-HTTP Static File Service
-SSH / SFTP Gateway Proxy
-Manual TCP Routes
-Examples
-```
-
-### Manual TCP Route Example
-
-```text
-gateway-route-add mc 127.0.0.1 25565
-gateway-default mc
-gateway-show
-```
-
-To close TCP fallback:
-
-```text
-gateway-default close
-```
-
-### Note
-
-* This is an experimental development release.
-* Gateway Service is intended for controlled and authorized testing environments.
-* Manual TCP backend routing is experimental and may require additional testing depending on the target service.
-* Minecraft Java routing is experimental.
-* This release focuses on Gateway commands and clearer help output.
-* This release does not include the larger config-folder refactor yet.
+Release title:
+v2.5.0 - KeepAliveBot Release
