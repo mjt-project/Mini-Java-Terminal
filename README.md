@@ -715,3 +715,15 @@ better process monitor for guest tunnels
 
 See [CHANGE.md](./CHANGE.md).
 Or **Full Changelog**: https://github.com/mjt-project/Mini-Java-Terminal/compare/2.5.0...3.0.0-SNAPSHOT+1
+
+--- 
+
+## Disclaimer
+
+Mini Java Terminal (MJT) is provided for educational, development, and authorized server administration purposes only.
+
+The author and contributors are not responsible for any misuse, data loss, service interruption, account suspension, hosting-policy violation, security incident, or damage caused by the use or modification of this software.
+
+Users are responsible for ensuring that their use of MJT complies with the rules of their hosting provider, applicable laws, platform terms, and the permissions granted to them.
+
+MJT is not intended to be used as a hacking tool, sandbox escape, privilege escalation tool, malware loader, miner, or bypass tool for unauthorized access.
