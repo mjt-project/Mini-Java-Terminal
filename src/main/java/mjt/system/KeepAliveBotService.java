@@ -27,11 +27,12 @@ public class KeepAliveBotService {
     private final LogService logService;
 
     private volatile boolean running = false;
+    private volatile boolean connecting = false;
     private volatile boolean connected = false;
     private volatile boolean stopRequested = false;
 
     private Thread workerThread;
-    private ClientSession client;
+    private volatile ClientSession client;
 
     public KeepAliveBotService(
             StateStore stateStore,
@@ -72,7 +73,7 @@ public class KeepAliveBotService {
 
         ClientSession localClient = client;
 
-        if (localClient != null && localClient.isConnected()) {
+        if (localClient != null) {
             try {
                 localClient.disconnect(Component.text("MJT bot stopped"));
             } catch (Exception ignored) {
@@ -83,6 +84,7 @@ public class KeepAliveBotService {
             workerThread.interrupt();
         }
 
+        connecting = false;
         connected = false;
         client = null;
 
@@ -97,6 +99,7 @@ public class KeepAliveBotService {
     public void printStatus() {
         System.out.println(CYAN + "[BOT STATUS]" + RESET);
         System.out.println("Loop running : " + running);
+        System.out.println("Connecting   : " + connecting);
         System.out.println("Connected    : " + connected);
         System.out.println("Enabled      : " + stateStore.get("bot.enabled", "false"));
         System.out.println("Host         : " + stateStore.get("bot.host", "127.0.0.1"));
@@ -125,6 +128,8 @@ public class KeepAliveBotService {
 
     private void runLoop() {
         while (!stopRequested) {
+            ClientSession session = null;
+
             try {
                 stateStore.load();
 
@@ -139,13 +144,11 @@ public class KeepAliveBotService {
                 System.out.println(CYAN + "[BOT] Connecting to " + host + ":" + port + " as " + username + RESET);
                 logService.write("[BOT CONNECTING] " + host + ":" + port + " user=" + username + "\n");
 
-                connectOnce(host, port, username);
-
-                while (!stopRequested && client != null && client.isConnected()) {
-                    sleepQuietly(1000L);
-                }
+                session = connectOnce(host, port, username);
+                waitForSessionEnd(session);
 
             } catch (Exception e) {
+                connecting = false;
                 connected = false;
 
                 try {
@@ -158,8 +161,12 @@ public class KeepAliveBotService {
                 }
 
             } finally {
+                if (client == session) {
+                    client = null;
+                }
+
+                connecting = false;
                 connected = false;
-                client = null;
             }
 
             if (!stopRequested) {
@@ -175,18 +182,19 @@ public class KeepAliveBotService {
         }
 
         running = false;
+        connecting = false;
         connected = false;
         client = null;
     }
 
-    private void connectOnce(
+    private ClientSession connectOnce(
             String host,
             int port,
             String username
     ) {
         MinecraftProtocol protocol = new MinecraftProtocol(username);
 
-        ClientSession localClient = ClientNetworkSessionFactory.factory()
+        final ClientSession localClient = ClientNetworkSessionFactory.factory()
                 .setRemoteSocketAddress(new InetSocketAddress(host, port))
                 .setProtocol(protocol)
                 .create();
@@ -197,6 +205,7 @@ public class KeepAliveBotService {
             @Override
             public void packetReceived(Session session, Packet packet) {
                 if (packet instanceof ClientboundLoginPacket) {
+                    connecting = false;
                     connected = true;
 
                     System.out.println(GREEN + "[BOT] Joined Minecraft server as " + username + RESET);
@@ -210,7 +219,12 @@ public class KeepAliveBotService {
 
             @Override
             public void disconnected(DisconnectedEvent event) {
+                connecting = false;
                 connected = false;
+
+                if (client == localClient) {
+                    client = null;
+                }
 
                 if (!stopRequested) {
                     System.out.println(YELLOW + "[BOT] Disconnected: " + event.getReason() + RESET);
@@ -223,8 +237,44 @@ public class KeepAliveBotService {
             }
         });
 
+        connecting = true;
+        connected = false;
         client = localClient;
         localClient.connect();
+
+        return localClient;
+    }
+
+    private void waitForSessionEnd(ClientSession session) {
+        long startedAt = System.currentTimeMillis();
+        long connectTimeoutMillis = 30_000L;
+
+        while (!stopRequested && client == session) {
+            if (!connected
+                    && !session.isConnected()
+                    && System.currentTimeMillis() - startedAt > connectTimeoutMillis) {
+
+                System.out.println(YELLOW + "[BOT] Connect timeout. Reconnecting..." + RESET);
+
+                try {
+                    logService.write("[BOT CONNECT TIMEOUT]\n");
+                } catch (IOException ignored) {
+                }
+
+                try {
+                    session.disconnect(Component.text("MJT bot connect timeout"));
+                } catch (Exception ignored) {
+                }
+
+                if (client == session) {
+                    client = null;
+                }
+
+                break;
+            }
+
+            sleepQuietly(1000L);
+        }
     }
 
     private String normalizeKey(String key) {
