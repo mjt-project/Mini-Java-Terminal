@@ -13,6 +13,12 @@ import main.java.mjt.services.cloudflare.CloudflareDnsService;
 import main.java.mjt.services.gateway.GatewayService;
 import main.java.mjt.services.http.HttpService;
 import main.java.mjt.services.https.HttpsService;
+import main.java.mjt.services.panel.PanelService;
+import main.java.mjt.services.panel.PanelFrontendInstallerService;
+import main.java.mjt.services.minecraft.MinecraftInstallerService;
+import main.java.mjt.services.minecraft.MinecraftProcessManagerService;
+import main.java.mjt.services.workspace.WorkspaceRegistryService;
+import main.java.mjt.services.workspace.WorkspaceFileService;
 import main.java.mjt.services.sshd.SshServerService;
 import main.java.mjt.services.cloudflare.tunnel.CloudflareTunnelService;
 import main.java.mjt.services.cloudflare.tunnel.GuestWebsiteService;
@@ -44,6 +50,12 @@ public class Main {
             CommandGuard commandGuard = new CommandGuard(logService);
             SystemDownloadService systemDownloadService = new SystemDownloadService(stateStore, logService);
             TargetProcessService targetProcessService = new TargetProcessService(logService);
+            MinecraftProcessManagerService minecraftProcessManagerService = new MinecraftProcessManagerService(stateStore, logService);
+            MinecraftInstallerService minecraftInstallerService = new MinecraftInstallerService(stateStore, logService);
+            WorkspaceRegistryService workspaceRegistryService = new WorkspaceRegistryService(stateStore);
+            WorkspaceFileService workspaceFileService = new WorkspaceFileService(stateStore, workspaceRegistryService);
+            PanelService panelService = new PanelService(stateStore, logService, minecraftProcessManagerService, minecraftInstallerService, workspaceRegistryService, workspaceFileService);
+            PanelFrontendInstallerService panelFrontendInstallerService = new PanelFrontendInstallerService(stateStore, logService);
             KeepAliveBotService keepAliveBotService = new KeepAliveBotService(stateStore, logService);
 
             CloudflareDnsService cloudflareDnsService =
@@ -80,8 +92,14 @@ public class Main {
                     gatewayService,
                     httpService,
                     httpsService,
+                    panelService,
+                    panelFrontendInstallerService,
+                    minecraftProcessManagerService,
+                    minecraftInstallerService,
                     targetProcessService,
-                    keepAliveBotService
+                    keepAliveBotService,
+                    workspaceRegistryService,
+                    workspaceFileService
             );
 
             AtomicBoolean shutdownStarted = new AtomicBoolean(false);
@@ -92,6 +110,8 @@ public class Main {
                             cloudflareTunnelService,
                             httpService,
                             httpsService,
+                            panelService,
+                            minecraftProcessManagerService,
                             gatewayService,
                             sshServerService,
                             keepAliveBotService
@@ -108,6 +128,10 @@ public class Main {
                 httpsService.start();
             }
             gatewayService.start();
+            if (stateStore.getBoolean("panel.enabled", false)
+                    && stateStore.getBoolean("panel.autoStart", true)) {
+                panelService.start();
+            }
             if (stateStore.getBoolean("tunnel.enabled", false)
                     && stateStore.getBoolean("tunnel.autoStart", false)) {
                 cloudflareTunnelService.start();
@@ -140,6 +164,8 @@ public class Main {
             CloudflareTunnelService cloudflareTunnelService,
             HttpService httpService,
             HttpsService httpsService,
+            PanelService panelService,
+            MinecraftProcessManagerService minecraftProcessManagerService,
             GatewayService gatewayService,
             SshServerService sshServerService,
             KeepAliveBotService keepAliveBotService
@@ -154,8 +180,10 @@ public class Main {
         }
 
         try { cloudflareTunnelService.stopAll(); } catch (Exception ignored) {}
+        try { minecraftProcessManagerService.stopAll(); } catch (Exception ignored) {}
         try { keepAliveBotService.stop(); } catch (Exception ignored) {}
         try { sshServerService.stop(); } catch (Exception ignored) {}
+        try { panelService.stop(); } catch (Exception ignored) {}
         try { gatewayService.stop(); } catch (Exception ignored) {}
         try { httpsService.stop(); } catch (Exception ignored) {}
         try { httpService.stop(); } catch (Exception ignored) {}
@@ -184,10 +212,12 @@ public class Main {
         System.out.println("  .mjt help                 - Show all commands");
         System.out.println("  .mjt website list         - Show HTTP websites");
         System.out.println("  .mjt website guest create - Create guest site with trycloudflare URL");
+        System.out.println("  .mjt panel start           - Start local Minecraft control panel");
         System.out.println("  .mjt system install cloudflared - Auto install cloudflared binary");
         System.out.println("  .mjt tunnel show          - Show Cloudflare Tunnel config");
         System.out.println("  .mjt gateway show         - Show Gateway router config");
         System.out.println("  .mjt minecraft start      - Start Minecraft managed target");
+        System.out.println("  .mjt minecraft install paper smp latest --accept-eula - Install Paper");
         System.out.println("  .mjt bot show             - Show KeepAlive bot status");
         System.out.println("  .mjt ssh show             - Show SSH/SFTP config");
         System.out.println("  .mjt exit                 - Stop Mini Java Terminal");

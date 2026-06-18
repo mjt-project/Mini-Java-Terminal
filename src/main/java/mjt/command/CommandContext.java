@@ -4,6 +4,12 @@ import main.java.mjt.services.cloudflare.CloudflareDnsService;
 import main.java.mjt.services.gateway.GatewayService;
 import main.java.mjt.services.http.HttpService;
 import main.java.mjt.services.https.HttpsService;
+import main.java.mjt.services.panel.PanelService;
+import main.java.mjt.services.panel.PanelFrontendInstallerService;
+import main.java.mjt.services.minecraft.MinecraftInstallerService;
+import main.java.mjt.services.minecraft.MinecraftProcessManagerService;
+import main.java.mjt.services.workspace.WorkspaceRegistryService;
+import main.java.mjt.services.workspace.WorkspaceFileService;
 import main.java.mjt.services.sshd.SshServerService;
 import main.java.mjt.services.cloudflare.tunnel.CloudflareTunnelService;
 import main.java.mjt.services.cloudflare.tunnel.GuestWebsiteService;
@@ -33,7 +39,13 @@ public record CommandContext(
         GatewayService gatewayService,
         HttpService httpService,
         HttpsService httpsService,
+        PanelService panelService,
+        PanelFrontendInstallerService panelFrontendInstallerService,
+        MinecraftProcessManagerService minecraftProcessManagerService,
+        MinecraftInstallerService minecraftInstallerService,
         TargetProcessService targetProcessService,
-        KeepAliveBotService keepAliveBotService
+        KeepAliveBotService keepAliveBotService,
+        WorkspaceRegistryService workspaceRegistryService,
+        WorkspaceFileService workspaceFileService
 ) {
 }

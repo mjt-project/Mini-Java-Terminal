@@ -15,6 +15,7 @@ import java.util.TreeSet;
 
 public class StateStore {
     private static final String APP_FILE = "core/app.properties";
+    private static final String WORKSPACES_FILE = "core/workspaces.properties";
     private static final String SSH_FILE = "services/ssh/ssh.properties";
     private static final String GATEWAY_FILE = "services/gateway/gateway.properties";
     private static final String TCP_FILE = "services/tcp/tcp-routes.properties";
@@ -24,6 +25,7 @@ public class StateStore {
     private static final String CLOUDFLARE_DDNS_FILE = "services/cloudflare/ddns-public-ipv4/ddns.properties";
     private static final String CLOUDFLARE_TUNNEL_FILE = "services/cloudflare/tunnel/tunnel.properties";
     private static final String MINECRAFT_FILE = "services/minecraft/minecraft.properties";
+    private static final String PANEL_FILE = "services/panel/panel.properties";
     private static final String SYSTEM_DOWNLOAD_FILE = "system/downloads/downloads.properties";
     private static final String BOT_FILE = "services/bot/keepalive.properties";
 
@@ -56,6 +58,7 @@ public class StateStore {
         createServiceFolders();
 
         loadConfigFile(APP_FILE, defaultAppConfig(), "Mini Java Terminal App Config");
+        loadConfigFile(WORKSPACES_FILE, defaultWorkspacesConfig(), "Mini Java Terminal Workspace Registry");
         loadConfigFile(SSH_FILE, defaultSshConfig(), "Mini Java Terminal SSH/SFTP Config");
         loadConfigFile(GATEWAY_FILE, defaultGatewayConfig(), "Mini Java Terminal Gateway Config");
         loadConfigFile(TCP_FILE, defaultTcpConfig(), "Mini Java Terminal TCP Routes Config");
@@ -65,6 +68,7 @@ public class StateStore {
         loadConfigFile(CLOUDFLARE_DDNS_FILE, defaultCloudflareDdnsConfig(), "Mini Java Terminal Cloudflare DDNS Config");
         loadConfigFile(CLOUDFLARE_TUNNEL_FILE, defaultCloudflareTunnelConfig(), "Mini Java Terminal Cloudflare Tunnel Config");
         loadConfigFile(MINECRAFT_FILE, defaultMinecraftConfig(), "Mini Java Terminal Minecraft Config");
+        loadConfigFile(PANEL_FILE, defaultPanelConfig(), "Mini Java Terminal Control Panel Config");
         loadConfigFile(SYSTEM_DOWNLOAD_FILE, defaultSystemDownloadConfig(), "Mini Java Terminal System Download Config");
         loadConfigFile(BOT_FILE, defaultBotConfig(), "Mini Java Terminal KeepAlive Bot Config");
 
@@ -198,10 +202,15 @@ public class StateStore {
         Files.createDirectories(configDir.resolve("services/tcp"));
         Files.createDirectories(configDir.resolve("services/gateway"));
         Files.createDirectories(configDir.resolve("services/minecraft"));
+        Files.createDirectories(configDir.resolve("services/panel"));
         Files.createDirectories(configDir.resolve("services/bot"));
         Files.createDirectories(configDir.resolve("services/https"));
         Files.createDirectories(configDir.resolve("system/downloads/cloudflared"));
+        Files.createDirectories(configDir.resolve("system/downloads/panel"));
+        Files.createDirectories(configDir.resolve("system/downloads/minecraft"));
         Files.createDirectories(configDir.resolve("system/tasks"));
+        Files.createDirectories(configDir.resolve("panel/static"));
+        Files.createDirectories(configDir.resolve("panel/assets"));
 
         Files.createDirectories(websiteRoot("main"));
         Files.createDirectories(websiteRoot("docs"));
@@ -453,6 +462,10 @@ public class StateStore {
     private String fileNameForKey(String key) {
         String lower = key.toLowerCase().trim();
 
+        if (lower.startsWith("workspace.")) {
+            return WORKSPACES_FILE;
+        }
+
         if (lower.startsWith("tunnel.")) {
             return CLOUDFLARE_TUNNEL_FILE;
         }
@@ -493,6 +506,10 @@ public class StateStore {
             return MINECRAFT_FILE;
         }
 
+        if (lower.startsWith("panel.")) {
+            return PANEL_FILE;
+        }
+
         if (lower.startsWith("system.download.")) {
             return SYSTEM_DOWNLOAD_FILE;
         }
@@ -506,6 +523,8 @@ public class StateStore {
 
     private String commentFor(String fileName) {
         switch (fileName) {
+            case WORKSPACES_FILE:
+                return "Mini Java Terminal Workspace Registry";
             case SSH_FILE:
                 return "Mini Java Terminal SSH/SFTP Config";
             case GATEWAY_FILE:
@@ -524,6 +543,8 @@ public class StateStore {
                 return "Mini Java Terminal Cloudflare Tunnel Config";
             case MINECRAFT_FILE:
                 return "Mini Java Terminal Minecraft Config";
+            case PANEL_FILE:
+                return "Mini Java Terminal Control Panel Config";
             case SYSTEM_DOWNLOAD_FILE:
                 return "Mini Java Terminal System Download Config";
             case BOT_FILE:
@@ -557,7 +578,60 @@ public class StateStore {
         properties.setProperty("app.migrated.gateway-http-split", "false");
         properties.setProperty("app.command.prefix", ".");
         properties.setProperty("app.prefix.show", ".");
+        properties.setProperty("app.workspace.enabled", "true");
+
+        // External static frontend for the MJT Control Panel.
+        // Keep this in core/app.properties so the frontend source can be updated
+        // without touching service-specific panel runtime config.
+        properties.setProperty("app.panel.frontend.source", "github");
+        properties.setProperty("app.panel.frontend.repo", "mjt-project/mjt-panel-web");
+        properties.setProperty("app.panel.frontend.tag", "0.0.1");
+        properties.setProperty("app.panel.frontend.autoUrlFromTag", "true");
+        properties.setProperty("app.panel.frontend.url", "https://github.com/mjt-project/mjt-panel-web/archive/refs/tags/0.0.1.zip");
+        properties.setProperty("app.panel.frontend.installed.version", "");
+        properties.setProperty("app.panel.frontend.installed.at", "");
+        properties.setProperty("app.panel.frontend.installed.url", "");
+
+        // Minecraft installer sources. Keep remote source URLs in app.properties so
+        // they can be changed without rebuilding the Java core.
+        properties.setProperty("app.minecraft.installer.papermc.base", "https://fill.papermc.io/v3/projects");
+        properties.setProperty("app.minecraft.installer.purpur.base", "https://api.purpurmc.org/v2/purpur");
+        properties.setProperty("app.minecraft.installer.userAgent", "MiniJavaTerminal/" + BuildInfo.VERSION + " (https://github.com/mjt-project/Mini-Java-Terminal)");
         return properties;
+    }
+
+    private Properties defaultWorkspacesConfig() {
+        Properties properties = new Properties();
+        Path root = serverRoot();
+        properties.setProperty("workspace.root", root.toString());
+        properties.setProperty("workspace.files.maxReadBytes", "1048576");
+        properties.setProperty("workspace.ids", "server-root,velocity,smp,lobby");
+
+        properties.setProperty("workspace.server-root.type", "folder");
+        properties.setProperty("workspace.server-root.name", "Server Root");
+        properties.setProperty("workspace.server-root.path", root.toString());
+        properties.setProperty("workspace.server-root.start", "");
+        properties.setProperty("workspace.server-root.stop", "");
+        properties.setProperty("workspace.server-root.port", "");
+        properties.setProperty("workspace.server-root.linkedMinecraftProfile", "");
+        properties.setProperty("workspace.server-root.readOnly", "false");
+
+        addMinecraftWorkspaceDefaults(properties, "velocity", "minecraft-velocity", "Velocity Proxy", root.resolve("Minecraft/Velocity"), "25565");
+        addMinecraftWorkspaceDefaults(properties, "smp", "minecraft-paper", "SMP", root.resolve("Minecraft/smp"), "25566");
+        addMinecraftWorkspaceDefaults(properties, "lobby", "minecraft-paper", "Lobby", root.resolve("Minecraft/lobby"), "25567");
+        return properties;
+    }
+
+    private void addMinecraftWorkspaceDefaults(Properties properties, String id, String type, String name, Path path, String port) {
+        String base = "workspace." + id + ".";
+        properties.setProperty(base + "type", type);
+        properties.setProperty(base + "name", name);
+        properties.setProperty(base + "path", path.toString());
+        properties.setProperty(base + "start", "bash start.sh");
+        properties.setProperty(base + "stop", id.equals("velocity") ? "shutdown" : "stop");
+        properties.setProperty(base + "port", port);
+        properties.setProperty(base + "linkedMinecraftProfile", id);
+        properties.setProperty(base + "readOnly", "false");
     }
 
     private Properties defaultSshConfig() {
@@ -712,10 +786,53 @@ public class StateStore {
 
     private Properties defaultMinecraftConfig() {
         Properties properties = new Properties();
-        properties.setProperty("minecraft.start-command", "bash start-minecraft.sh");
+        properties.setProperty("minecraft.start-command", "bash start.sh");
         properties.setProperty("minecraft.stop-command", "stop");
         properties.setProperty("minecraft.host", "127.0.0.1");
         properties.setProperty("minecraft.port", "25565");
+        properties.setProperty("minecraft.workdir", serverRoot().resolve("Minecraft/smp").toString());
+        properties.setProperty("minecraft.active", "smp");
+        properties.setProperty("minecraft.profiles", "velocity,smp,lobby");
+
+        properties.setProperty("minecraft.profile.velocity.type", "velocity");
+        properties.setProperty("minecraft.profile.velocity.workdir", serverRoot().resolve("Minecraft/Velocity").toString());
+        properties.setProperty("minecraft.profile.velocity.command", "bash start.sh");
+        properties.setProperty("minecraft.profile.velocity.stop", "shutdown");
+        properties.setProperty("minecraft.profile.velocity.port", "25565");
+
+        properties.setProperty("minecraft.profile.smp.type", "paper");
+        properties.setProperty("minecraft.profile.smp.workdir", serverRoot().resolve("Minecraft/smp").toString());
+        properties.setProperty("minecraft.profile.smp.command", "bash start.sh");
+        properties.setProperty("minecraft.profile.smp.stop", "stop");
+        properties.setProperty("minecraft.profile.smp.port", "25566");
+
+        properties.setProperty("minecraft.profile.lobby.type", "paper");
+        properties.setProperty("minecraft.profile.lobby.workdir", serverRoot().resolve("Minecraft/lobby").toString());
+        properties.setProperty("minecraft.profile.lobby.command", "bash start.sh");
+        properties.setProperty("minecraft.profile.lobby.stop", "stop");
+        properties.setProperty("minecraft.profile.lobby.port", "25567");
+
+        properties.setProperty("minecraft.installer.defaultXms", "1G");
+        properties.setProperty("minecraft.installer.defaultXmx", "2G");
+        properties.setProperty("minecraft.installer.velocityXms", "128M");
+        properties.setProperty("minecraft.installer.velocityXmx", "512M");
+        properties.setProperty("minecraft.installer.serverJar", "minecraft.jar");
+        properties.setProperty("minecraft.installer.velocityJar", "Velocity.jar");
+        properties.setProperty("minecraft.installer.autoAcceptEula", "false");
+        return properties;
+    }
+
+    private Properties defaultPanelConfig() {
+        Properties properties = new Properties();
+        properties.setProperty("panel.enabled", "false");
+        properties.setProperty("panel.autoStart", "true");
+        properties.setProperty("panel.host", "127.0.0.1");
+        properties.setProperty("panel.port", "9090");
+        properties.setProperty("panel.auth.enabled", "true");
+        properties.setProperty("panel.auth.token", "");
+        properties.setProperty("panel.public.mode", "local-only");
+        properties.setProperty("panel.theme", "dark");
+        properties.setProperty("panel.static.root", configDir.resolve("panel/static").toAbsolutePath().normalize().toString());
         return properties;
     }
 
@@ -723,6 +840,7 @@ public class StateStore {
         Properties properties = new Properties();
 
         Path cloudflaredDir = configDir.resolve("system/downloads/cloudflared").toAbsolutePath().normalize();
+        Path minecraftDir = configDir.resolve("system/downloads/minecraft").toAbsolutePath().normalize();
 
         properties.setProperty("system.download.cloudflared.dir", cloudflaredDir.toString());
         properties.setProperty("system.download.cloudflared.path", cloudflaredDir.resolve("cloudflared").toString());
@@ -733,6 +851,13 @@ public class StateStore {
         properties.setProperty("system.download.cloudflared.arch", "");
         properties.setProperty("system.download.cloudflared.version", "");
         properties.setProperty("system.download.cloudflared.status", "never");
+
+        properties.setProperty("system.download.minecraft.dir", minecraftDir.toString());
+        properties.setProperty("system.download.minecraft.lastSoftware", "");
+        properties.setProperty("system.download.minecraft.lastVersion", "");
+        properties.setProperty("system.download.minecraft.lastBuild", "");
+        properties.setProperty("system.download.minecraft.lastUrl", "");
+        properties.setProperty("system.download.minecraft.status", "never");
         return properties;
     }
 

@@ -16,7 +16,8 @@ public final class HelpCenter {
         cmd(".mjt help system", "Runtime, cd, pwd, timeout, version");
         cmd(".mjt help shell", "Safe shell routing and .command usage");
         cmd(".mjt help download", "Install required binaries such as cloudflared");
-        cmd(".mjt help minecraft", "Managed Minecraft target commands");
+        cmd(".mjt help minecraft", "Managed Minecraft target commands and server profiles");
+        cmd(".mjt help panel", "Lightweight Minecraft control panel");
 
         section("Website");
         cmd(".mjt help website", "Local website / HTTP site manager");
@@ -121,11 +122,41 @@ public final class HelpCenter {
             case "minecraft":
             case "mc":
                 title("Minecraft Help");
-                cmd(".mjt minecraft start", "Start managed Minecraft target");
-                cmd(".mjt minecraft start <command>", "Start target with custom command");
-                cmd(".mjt minecraft stop", "Send stop to Minecraft");
-                cmd(".mjt minecraft kill", "Force kill target");
-                cmd(".mjt minecraft status", "Show target status");
+                cmd(".mjt minecraft profile list", "List Velocity/SMP/Lobby profiles");
+                cmd(".mjt minecraft profile show <name>", "Show profile workdir/command");
+                cmd(".mjt minecraft profile use <name>", "Set active profile");
+                cmd(".mjt minecraft profile add <name> <workdir> <command>", "Add profile");
+                cmd(".mjt minecraft installer show", "Show installer sources and defaults");
+                cmd(".mjt minecraft install velocity velocity latest", "Download/install latest Velocity profile");
+                cmd(".mjt minecraft install paper smp latest --accept-eula", "Download/install latest Paper profile");
+                cmd(".mjt minecraft install purpur lobby latest --accept-eula", "Download/install latest Purpur profile");
+                cmd(".mjt minecraft start", "Start active profile in its own workdir");
+                cmd(".mjt minecraft start <profile>", "Start selected profile without stopping others");
+                cmd(".mjt minecraft stop <profile>", "Send stop command to one profile");
+                cmd(".mjt minecraft kill <profile>", "Force kill one profile");
+                cmd(".mjt minecraft status", "Show all Minecraft process statuses");
+                cmd(".mjt minecraft send <profile> <cmd>", "Send command to a specific server");
+                cmd(".mjt minecraft attach <profile>", "Route no-prefix console input to one running profile");
+                cmd(".mjt minecraft logs <profile>", "Show recent logs for one profile");
+                return;
+
+            case "panel":
+            case "control-panel":
+                title("MJT Control Panel Help");
+                cmd(".mjt panel show", "Show panel config and token status");
+                cmd(".mjt panel set enabled true", "Enable local panel service");
+                cmd(".mjt panel set host 127.0.0.1", "Bind panel locally");
+                cmd(".mjt panel set port 9090", "Set panel port");
+                cmd(".mjt panel install", "Download frontend from GitHub URL in core/app.properties");
+                cmd(".mjt panel update", "Download and replace frontend static files");
+                cmd(".mjt panel frontend show", "Show frontend URL, install path, installed version");
+                cmd(".mjt panel frontend set url <url>", "Save frontend zip URL into core/app.properties");
+                cmd(".mjt panel frontend set tag 0.0.1", "Use a GitHub tag source zip URL");
+                cmd("POST /api/minecraft/install", "Panel API: install velocity/paper/purpur into a profile");
+                cmd(".mjt panel token reset", "Generate a new panel token");
+                cmd(".mjt panel start", "Start web panel");
+                cmd(".mjt panel stop", "Stop web panel");
+                System.out.println(YELLOW + "Security:" + RESET + " keep panel on 127.0.0.1 unless intentionally published through a protected tunnel.");
                 return;
 
             case "ssh":
