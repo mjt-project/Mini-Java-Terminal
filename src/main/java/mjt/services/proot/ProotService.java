@@ -45,10 +45,17 @@ public final class ProotService {
 
     private final StateStore stateStore;
     private final LogService logService;
+    private final ProotDistroService distroService;
 
+    /** Legacy-compatible constructor. New Core wiring should share one adapter instance. */
     public ProotService(StateStore stateStore, LogService logService) {
+        this(stateStore, logService, new ProotDistroService(stateStore, logService));
+    }
+
+    public ProotService(StateStore stateStore, LogService logService, ProotDistroService distroService) {
         this.stateStore = stateStore;
         this.logService = logService;
+        this.distroService = distroService;
     }
 
     /** Creates only MJT-owned directories and the service policy file. */
@@ -64,14 +71,17 @@ public final class ProotService {
             Files.createDirectories(mjtHome.resolve("system"));
             Files.createDirectories(mjtHome.resolve("runtime/proot"));
             Files.createDirectories(rootfs);
+            distroService.initializeDirectories();
 
-            if (isBootstrappedRootfs(rootfs)) {
+            if (distroService.isActiveAndReady()) {
+                System.out.println(GREEN + "[PRoot] Active upstream environment is ready: " + distroService.getActiveEnvironment() + RESET);
+            } else if (isBootstrappedRootfs(rootfs)) {
                 createServiceStartPolicy(rootfs);
                 System.out.println(GREEN + "[PRoot] Runtime directories are ready." + RESET);
                 System.out.println(GREEN + "[PRoot] Rootfs validation passed: " + rootfs + RESET);
             } else {
                 System.out.println(YELLOW + "[PRoot] Runtime directories are ready, but rootfs is not bootstrapped yet." + RESET);
-                System.out.println(YELLOW + "[PRoot] Expected at least /bin/sh, /usr/bin/apt and /var/lib/dpkg/status inside: " + rootfs + RESET);
+                System.out.println(YELLOW + "[PRoot] Expected at least /bin/sh, /etc and /usr inside: " + rootfs + RESET);
             }
 
             log("[PROOT INIT] rootfs=" + rootfs + "\n");
@@ -99,16 +109,23 @@ public final class ProotService {
         System.out.println("Exec timeout   : " + getExecTimeoutSeconds() + " seconds (0 = unlimited)");
         System.out.println("Policy rc.d    : " + rootfs.resolve("usr/sbin/policy-rc.d"));
         System.out.println();
+        if (distroService.isActiveAndReady()) {
+            System.out.println("Runtime mode   : upstream proot-distro");
+            System.out.println("Environment    : " + distroService.getActiveEnvironment());
+        } else {
+            System.out.println("Runtime mode   : legacy manual rootfs");
+        }
         System.out.println("Guest packages live below: " + rootfs);
-        System.out.println("Example: .mjt proot exec apt update");
-        System.out.println("Example: .mjt proot exec apt install nano htop");
+        System.out.println("Example: .mjt proot exec apt-get update");
+        System.out.println("Example: .mjt proot exec apk update");
+        System.out.println("Distro engine : .mjt proot distro engine install");
     }
 
     public synchronized void test() {
         if (!ensureReadyForExec()) {
             return;
         }
-        execute("id && command -v apt && apt --version", true);
+        execute("id && if command -v apt-get >/dev/null 2>&1; then apt-get --version; elif command -v apk >/dev/null 2>&1; then apk --version; else echo 'No supported package manager found'; exit 127; fi", true);
     }
 
     public synchronized void execute(String shellCommand) {
@@ -191,6 +208,14 @@ public final class ProotService {
      */
     public synchronized List<String> buildGuestCommand(String shellCommand, Path hostWorkingDirectory) throws IOException {
         validateGuestPaths();
+        if (distroService.isActiveAndReady()) {
+            return distroService.buildGuestCommand(
+                    shellCommand,
+                    hostWorkingDirectory,
+                    getWorkspacePath(),
+                    getGuestWorkspace()
+            );
+        }
         String guestWorkingDirectory = toGuestPath(hostWorkingDirectory);
 
         List<String> command = new ArrayList<>();
@@ -329,9 +354,20 @@ public final class ProotService {
     }
 
     private void validateGuestPaths() throws IOException {
+        Path workspace = getWorkspacePath();
+        if (distroService.isActiveAndReady()) {
+            distroService.validateActiveRuntime();
+            if (!Files.isDirectory(workspace)) {
+                throw new IOException("Workspace directory does not exist: " + workspace);
+            }
+            if (!isSafeGuestPath(getGuestWorkspace())) {
+                throw new IOException("Invalid guest workspace: " + getGuestWorkspace());
+            }
+            return;
+        }
+
         Path binary = getBinaryPath();
         Path rootfs = getRootfsPath();
-        Path workspace = getWorkspacePath();
 
         if (!isExecutable(binary)) {
             throw new IOException("PRoot binary is missing or not executable: " + binary);
@@ -350,8 +386,8 @@ public final class ProotService {
     private boolean isBootstrappedRootfs(Path rootfs) {
         return Files.isDirectory(rootfs)
                 && Files.isRegularFile(rootfs.resolve("bin/sh"))
-                && Files.isRegularFile(rootfs.resolve("usr/bin/apt"))
-                && Files.isRegularFile(rootfs.resolve("var/lib/dpkg/status"));
+                && Files.isDirectory(rootfs.resolve("etc"))
+                && Files.isDirectory(rootfs.resolve("usr"));
     }
 
     private boolean isExecutable(Path path) {
@@ -359,6 +395,9 @@ public final class ProotService {
     }
 
     private void createServiceStartPolicy(Path rootfs) throws IOException {
+        if (!Files.isRegularFile(rootfs.resolve("usr/bin/apt-get"))) {
+            return;
+        }
         Path policy = rootfs.resolve("usr/sbin/policy-rc.d");
         Files.createDirectories(policy.getParent());
         Files.writeString(policy, "#!/bin/sh\n# MJT guest policy: packages must not auto-start host-visible daemons.\nexit 101\n", StandardCharsets.UTF_8);
@@ -395,6 +434,10 @@ public final class ProotService {
     }
 
     private Path getRootfsPath() {
+        Path activeRootfs = distroService.activeRootfs();
+        if (activeRootfs != null) {
+            return activeRootfs.toAbsolutePath().normalize();
+        }
         String configured = stateStore.get(KEY_ROOTFS, "").trim();
         if (!configured.isBlank()) {
             return Paths.get(configured).toAbsolutePath().normalize();

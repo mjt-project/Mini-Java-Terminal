@@ -14,8 +14,8 @@ import main.java.mjt.services.workspace.WorkspaceRegistryService;
 import main.java.mjt.services.workspace.WorkspaceFileService;
 import main.java.mjt.services.sshd.SshServerService;
 import main.java.mjt.services.cloudflare.tunnel.CloudflareTunnelService;
-import main.java.mjt.services.cloudflare.tunnel.GuestWebsiteService;
 import main.java.mjt.services.proot.ProotService;
+import main.java.mjt.services.proot.ProotDistroService;
 import main.java.mjt.services.service.GuestServiceManager;
 
 import main.java.mjt.system.CommandGuard;
@@ -38,7 +38,6 @@ public record CommandContext(
         SystemDownloadService systemDownloadService,
         CloudflareDnsService cloudflareDnsService,
         CloudflareTunnelService cloudflareTunnelService,
-        GuestWebsiteService guestWebsiteService,
         SshServerService sshServerService,
         GatewayService gatewayService,
         HttpService httpService,
@@ -52,6 +51,7 @@ public record CommandContext(
         WorkspaceRegistryService workspaceRegistryService,
         WorkspaceFileService workspaceFileService,
         ProotService prootService,
+        ProotDistroService prootDistroService,
         OpenVscodeService openVscodeService,
         GuestServiceManager guestServiceManager,
         PanelApiV1Service panelApiV1Service

@@ -75,11 +75,6 @@ public final class HelpCenter {
                 cmd(".mjt system install cloudflared", "Auto-detect OS/CPU, download cloudflared, chmod +x, verify --version");
                 cmd(".mjt system cloudflared check", "Check configured/cloudflared binary with --version");
                 cmd(".mjt system cloudflared show", "Show download path, last asset, version, status");
-                cmd(".mjt system install proot-distro", "Install MJT-native PRoot + portable Python + upstream proot-distro");
-                cmd(".mjt system install proot", "Install only MJT-native PRoot for this host CPU");
-                cmd(".mjt system install python", "Install only MJT portable Python");
-                cmd(".mjt system proot-distro check", "Verify the Environment Engine");
-                cmd(".mjt system proot-distro show", "Show managed paths, architecture, XDG storage and readiness");
                 cmd(".mjt tunnel set cloudflared <path>", "Manually set cloudflared binary path");
                 return;
 

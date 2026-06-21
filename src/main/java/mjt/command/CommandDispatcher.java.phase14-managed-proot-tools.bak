@@ -226,25 +226,6 @@ public class CommandDispatcher {
             return "help-topic download";
         }
 
-
-        if (lower.equals("system install proot") || lower.equals("system proot install")) {
-            return "system-proot-install";
-        }
-        if (lower.equals("system install python") || lower.equals("system python install")) {
-            return "system-python-install";
-        }
-        if (lower.equals("system install proot-distro")
-                || lower.equals("system proot-distro install")
-                || lower.equals("system install environment-engine")) {
-            return "system-proot-distro-install";
-        }
-        if (lower.equals("system proot-distro check") || lower.equals("system environment-engine check")) {
-            return "system-proot-distro-check";
-        }
-        if (lower.equals("system proot-distro show") || lower.equals("system environment-engine show")) {
-            return "system-proot-distro-show";
-        }
-
         if (lower.equals("system install cloudflared")
                 || lower.equals("system download cloudflared")
                 || lower.equals("system cloudflared install")
@@ -467,32 +448,6 @@ public class CommandDispatcher {
 
         if (command.startsWith("help-topic ")) {
             HelpCenter.printTopic(command.substring("help-topic ".length()).trim());
-            return true;
-        }
-
-
-        if (command.equalsIgnoreCase("system-proot-install")) {
-            context.systemDownloadService().installProot();
-            return true;
-        }
-
-        if (command.equalsIgnoreCase("system-python-install")) {
-            context.systemDownloadService().installPortablePython();
-            return true;
-        }
-
-        if (command.equalsIgnoreCase("system-proot-distro-install")) {
-            context.systemDownloadService().installProotDistro();
-            return true;
-        }
-
-        if (command.equalsIgnoreCase("system-proot-distro-check")) {
-            context.systemDownloadService().checkProotDistro(false);
-            return true;
-        }
-
-        if (command.equalsIgnoreCase("system-proot-distro-show")) {
-            context.systemDownloadService().showProotDistro();
             return true;
         }
 

@@ -22,6 +22,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import main.java.mjt.services.minecraft.MinecraftProcessManagerService;
+import main.java.mjt.services.proot.ProotDistroService;
+import main.java.mjt.services.project.ProjectManagerService;
 import main.java.mjt.services.service.GuestServiceManager;
 import main.java.mjt.system.BuildInfo;
 import main.java.mjt.system.LogService;
@@ -51,6 +53,8 @@ public final class PanelApiV1Service {
     private final LogService logService;
     private final MinecraftProcessManagerService minecraftProcessManagerService;
     private final GuestServiceManager guestServiceManager;
+    private final ProotDistroService prootDistroService;
+    private final ProjectManagerService projectManagerService;
     private final ExecutorService executor = Executors.newFixedThreadPool(8, runnable -> {
         Thread thread = new Thread(runnable, "mjt-panel-api-v1");
         thread.setDaemon(true);
@@ -64,7 +68,8 @@ public final class PanelApiV1Service {
             StateStore stateStore,
             LogService logService,
             MinecraftProcessManagerService minecraftProcessManagerService,
-            GuestServiceManager guestServiceManager
+            GuestServiceManager guestServiceManager,
+            ProotDistroService prootDistroService
     ) {
         this.stateStore = Objects.requireNonNull(stateStore, "stateStore");
         this.logService = Objects.requireNonNull(logService, "logService");
@@ -73,6 +78,10 @@ public final class PanelApiV1Service {
                 "minecraftProcessManagerService"
         );
         this.guestServiceManager = Objects.requireNonNull(guestServiceManager, "guestServiceManager");
+        this.prootDistroService = Objects.requireNonNull(prootDistroService, "prootDistroService");
+        this.projectManagerService = new ProjectManagerService(
+                this.stateStore, this.logService, this.guestServiceManager, this.prootDistroService
+        );
     }
 
     public synchronized void start() {
@@ -229,7 +238,60 @@ public final class PanelApiV1Service {
             return;
         }
         if (route.equals("/capabilities") && method.equals("GET")) {
-            sendJson(exchange, 200, "{\"ok\":true,\"apiVersion\":1,\"features\":{\"files\":false,\"backups\":false,\"players\":false,\"network\":true,\"system\":true,\"services\":true,\"serviceEvents\":true}}");
+            sendJson(exchange, 200, "{\"ok\":true,\"apiVersion\":1,\"features\":{\"files\":false,\"backups\":false,\"players\":false,\"network\":true,\"system\":true,\"services\":true,\"serviceEvents\":true,\"distros\":true,\"distroJobs\":true,\"projects\":true}}");
+            return;
+        }
+        if (route.equals("/distros/catalog") && method.equals("GET")) {
+            sendJson(exchange, 200, buildDistroCatalogJson());
+            return;
+        }
+        if (route.equals("/distros") && method.equals("GET")) {
+            sendJson(exchange, 200, buildDistrosJson());
+            return;
+        }
+        if (route.equals("/distros/engine") && method.equals("GET")) {
+            sendJson(exchange, 200, buildDistroEngineJson());
+            return;
+        }
+        if (route.equals("/distros/engine/install") && method.equals("POST")) {
+            try {
+                sendJson(exchange, 202, buildDistroJobQueuedJson(prootDistroService.installEngineAsync()));
+            } catch (IOException e) {
+                throw new ApiException(400, "distro_error", e.getMessage());
+            }
+            return;
+        }
+        if (route.equals("/distros/engine/update") && method.equals("POST")) {
+            Map<String, String> body = readJsonObject(exchange);
+            try {
+                sendJson(exchange, 202, buildDistroJobQueuedJson(prootDistroService.updateEngineAsync(body.get("version"))));
+            } catch (IOException e) {
+                throw new ApiException(400, "distro_error", e.getMessage());
+            }
+            return;
+        }
+        if (route.equals("/distros/install") && method.equals("POST")) {
+            createDistro(exchange);
+            return;
+        }
+        if (route.startsWith("/distros/")) {
+            handleDistroRoute(exchange, route.substring("/distros/".length()));
+            return;
+        }
+        if (route.equals("/projects/catalog") && method.equals("GET")) {
+            sendJson(exchange, 200, buildProjectCatalogJson());
+            return;
+        }
+        if (route.equals("/projects") && method.equals("GET")) {
+            sendJson(exchange, 200, buildProjectsJson());
+            return;
+        }
+        if (route.equals("/projects") && method.equals("POST")) {
+            createProject(exchange);
+            return;
+        }
+        if (route.startsWith("/projects/")) {
+            handleProjectRoute(exchange, route.substring("/projects/".length()));
             return;
         }
         if (route.equals("/minecraft/status") && method.equals("GET")) {
@@ -264,6 +326,99 @@ public final class PanelApiV1Service {
             return;
         }
         throw new ApiException(404, "not_found", "Unknown API endpoint.");
+    }
+
+
+    private void createProject(HttpExchange exchange) throws IOException {
+        Map<String, String> body = readJsonObject(exchange);
+        String id = required(body, "id", 48);
+        String templateId = required(body, "templateId", 64);
+        boolean start = !"false".equalsIgnoreCase(body.getOrDefault("start", "true"));
+        try {
+            ProjectManagerService.ProjectInfo project = projectManagerService.create(
+                    new ProjectManagerService.CreateRequest(id, templateId, start)
+            );
+            sendJson(exchange, 201, "{\"ok\":true,\"project\":" + buildProjectJson(project) + "}");
+        } catch (IOException e) {
+            throw new ApiException(400, "project_error", e.getMessage());
+        }
+    }
+
+    private void handleProjectRoute(HttpExchange exchange, String tail) throws IOException {
+        String[] parts = tail.split("/", 3);
+        String id = parts.length == 0 ? "" : parts[0];
+        String method = exchange.getRequestMethod().toUpperCase(Locale.ROOT);
+        String operation = parts.length > 1 ? parts[1] : "";
+        try {
+            if (operation.isBlank() && method.equals("GET")) {
+                sendJson(exchange, 200, "{\"ok\":true,\"project\":" + buildProjectJson(projectManagerService.project(id)) + "}");
+                return;
+            }
+            if (operation.isBlank() && method.equals("DELETE")) {
+                projectManagerService.remove(id);
+                sendJson(exchange, 200, "{\"ok\":true,\"id\":" + json(id) + ",\"filesKept\":true}");
+                return;
+            }
+            if (method.equals("POST") && List.of("start", "stop", "restart", "publish", "unpublish", "health").contains(operation)) {
+                ProjectManagerService.ProjectInfo project = projectManagerService.action(id, operation);
+                sendJson(exchange, 200, "{\"ok\":true,\"project\":" + buildProjectJson(project) + "}");
+                return;
+            }
+        } catch (IOException e) {
+            throw new ApiException(400, "project_error", e.getMessage());
+        }
+        throw new ApiException(405, "method_not_allowed", "Unsupported project operation.");
+    }
+
+    private void createDistro(HttpExchange exchange) throws IOException {
+        Map<String, String> body = readJsonObject(exchange);
+        String catalogId = required(body, "catalogId", 64);
+        String name = body.getOrDefault("name", "");
+        boolean activate = !"false".equalsIgnoreCase(body.getOrDefault("activate", "true"));
+        try {
+            String jobId = prootDistroService.installEnvironmentAsync(catalogId, name, activate);
+            sendJson(exchange, 202, buildDistroJobQueuedJson(jobId));
+        } catch (IOException e) {
+            throw new ApiException(400, "distro_error", e.getMessage());
+        }
+    }
+
+    private void handleDistroRoute(HttpExchange exchange, String tail) throws IOException {
+        String[] parts = tail.split("/", 3);
+        String first = parts.length == 0 ? "" : parts[0];
+        String method = exchange.getRequestMethod().toUpperCase(Locale.ROOT);
+
+        if ("jobs".equals(first) && parts.length == 2 && method.equals("GET")) {
+            try {
+                sendJson(exchange, 200, buildDistroJobJson(prootDistroService.getJob(parts[1])));
+            } catch (IOException e) {
+                throw new ApiException(404, "distro_job_not_found", e.getMessage());
+            }
+            return;
+        }
+
+        String name = cleanDistroName(first);
+        if (name.isBlank()) {
+            throw new ApiException(400, "invalid_environment_name", "Environment name is required.");
+        }
+        String operation = parts.length > 1 ? parts[1] : "";
+        try {
+            if (operation.isBlank() && method.equals("GET")) {
+                sendJson(exchange, 200, buildDistroEnvironmentJson(prootDistroService.environment(name)));
+                return;
+            }
+            if (operation.equals("activate") && method.equals("POST")) {
+                sendJson(exchange, 202, buildDistroJobQueuedJson(prootDistroService.activateEnvironmentAsync(name)));
+                return;
+            }
+            if (operation.equals("remove") && method.equals("POST")) {
+                sendJson(exchange, 202, buildDistroJobQueuedJson(prootDistroService.removeEnvironmentAsync(name)));
+                return;
+            }
+        } catch (IOException e) {
+            throw new ApiException(400, "distro_error", e.getMessage());
+        }
+        throw new ApiException(405, "method_not_allowed", "Unsupported environment operation.");
     }
 
     private void handleMinecraftAction(HttpExchange exchange, String action) throws IOException {
@@ -417,12 +572,137 @@ public final class PanelApiV1Service {
         }
     }
 
+
+    private String buildProjectCatalogJson() {
+        StringBuilder builder = new StringBuilder("{\"ok\":true,\"activeEnvironment\":");
+        builder.append(json(prootDistroService.getActiveEnvironment())).append(",\"templates\":[");
+        List<ProjectManagerService.ProjectTemplate> entries = projectManagerService.catalog();
+        for (int index = 0; index < entries.size(); index++) {
+            if (index > 0) builder.append(',');
+            ProjectManagerService.ProjectTemplate entry = entries.get(index);
+            builder.append("{\"id\":").append(json(entry.id()))
+                    .append(",\"label\":").append(json(entry.label()))
+                    .append(",\"description\":").append(json(entry.description()))
+                    .append(",\"runtime\":").append(json(entry.runtime()))
+                    .append('}');
+        }
+        return builder.append("]}").toString();
+    }
+
+    private String buildProjectsJson() {
+        StringBuilder builder = new StringBuilder("{\"ok\":true,\"projects\":[");
+        List<ProjectManagerService.ProjectInfo> entries = projectManagerService.projects();
+        for (int index = 0; index < entries.size(); index++) {
+            if (index > 0) builder.append(',');
+            builder.append(buildProjectJson(entries.get(index)));
+        }
+        return builder.append("]}").toString();
+    }
+
+    private String buildProjectJson(ProjectManagerService.ProjectInfo project) {
+        return "{\"id\":" + json(project.id())
+                + ",\"templateId\":" + json(project.templateId())
+                + ",\"templateLabel\":" + json(project.templateLabel())
+                + ",\"runtime\":" + json(project.runtime())
+                + ",\"workdir\":" + json(project.workdir())
+                + ",\"serviceId\":" + json(project.serviceId())
+                + ",\"port\":" + project.port()
+                + ",\"running\":" + project.running()
+                + ",\"createdAt\":" + json(project.createdAt())
+                + ",\"startupNotice\":" + json(project.startupNotice())
+                + "}";
+    }
+
     private String buildStatusJson() {
         return "{\"ok\":true,\"apiVersion\":1,\"coreVersion\":" + json(BuildInfo.VERSION)
                 + ",\"release\":" + json(BuildInfo.RELEASE)
                 + ",\"serverTime\":" + json(Instant.now().toString())
                 + ",\"activeProfile\":" + json(minecraftProcessManagerService.getAttachedProfile())
-                + ",\"guestServices\":" + serviceIds().size() + "}";
+                + ",\"guestServices\":" + serviceIds().size()
+                + ",\"activeEnvironment\":" + json(prootDistroService.getActiveEnvironment())
+                + ",\"hostArchitecture\":" + json(prootDistroService.engineInfo().hostArchitecture())
+                + ",\"distroEngineReady\":" + prootDistroService.engineInfo().engineReady() + "}";
+    }
+
+    private String buildDistroCatalogJson() {
+        ProotDistroService.EngineInfo engine = prootDistroService.engineInfo();
+        StringBuilder builder = new StringBuilder("{\"ok\":true,\"hostArchitecture\":");
+        builder.append(json(engine.hostArchitecture()))
+                .append(",\"displayArchitecture\":").append(json(engine.displayArchitecture()))
+                .append(",\"supported\":").append(engine.architectureSupported())
+                .append(",\"environments\":[");
+        List<ProotDistroService.CatalogEntry> entries = prootDistroService.catalog();
+        for (int index = 0; index < entries.size(); index++) {
+            if (index > 0) builder.append(',');
+            ProotDistroService.CatalogEntry entry = entries.get(index);
+            builder.append("{\"id\":").append(json(entry.id()))
+                    .append(",\"label\":").append(json(entry.label()))
+                    .append(",\"image\":").append(json(entry.image()))
+                    .append(",\"architecture\":").append(json(entry.displayArchitecture()))
+                    .append(",\"packageManager\":").append(json(entry.packageManager()))
+                    .append('}');
+        }
+        return builder.append("]}").toString();
+    }
+
+    private String buildDistroEngineJson() {
+        ProotDistroService.EngineInfo info = prootDistroService.engineInfo();
+        return "{\"ok\":true,\"engine\":{"
+                + "\"enabled\":" + info.enabled()
+                + ",\"linuxHost\":" + info.linuxHost()
+                + ",\"hostArchitecture\":" + json(info.hostArchitecture())
+                + ",\"displayArchitecture\":" + json(info.displayArchitecture())
+                + ",\"architectureSupported\":" + info.architectureSupported()
+                + ",\"python\":" + json(info.python())
+                + ",\"pythonReady\":" + info.pythonReady()
+                + ",\"proot\":" + json(info.proot())
+                + ",\"prootReady\":" + info.prootReady()
+                + ",\"path\":" + json(info.enginePath())
+                + ",\"ready\":" + info.engineReady()
+                + ",\"version\":" + json(info.engineVersion())
+                + ",\"activeEnvironment\":" + json(info.activeEnvironment())
+                + ",\"runtimeDirectory\":" + json(info.runtimeDirectory())
+                + ",\"cacheDirectory\":" + json(info.cacheDirectory())
+                + "}}";
+    }
+
+    private String buildDistrosJson() throws IOException {
+        StringBuilder builder = new StringBuilder("{\"ok\":true,\"activeEnvironment\":");
+        builder.append(json(prootDistroService.getActiveEnvironment())).append(",\"environments\":[");
+        List<ProotDistroService.EnvironmentInfo> entries = prootDistroService.environments();
+        for (int index = 0; index < entries.size(); index++) {
+            if (index > 0) builder.append(',');
+            builder.append(buildDistroEnvironmentJson(entries.get(index)));
+        }
+        return builder.append("]}").toString();
+    }
+
+    private String buildDistroEnvironmentJson(ProotDistroService.EnvironmentInfo environment) {
+        return "{\"name\":" + json(environment.name())
+                + ",\"source\":" + json(environment.source())
+                + ",\"rootfs\":" + json(environment.rootfs())
+                + ",\"architecture\":" + json(environment.architecture())
+                + ",\"active\":" + environment.active()
+                + ",\"ready\":" + environment.ready()
+                + "}";
+    }
+
+    private String buildDistroJobQueuedJson(String jobId) {
+        return "{\"ok\":true,\"accepted\":true,\"jobId\":" + json(jobId) + "}";
+    }
+
+    private String buildDistroJobJson(ProotDistroService.JobInfo job) {
+        return "{\"ok\":true,\"job\":{"
+                + "\"id\":" + json(job.id())
+                + ",\"type\":" + json(job.type())
+                + ",\"target\":" + json(job.target())
+                + ",\"state\":" + json(job.state())
+                + ",\"message\":" + json(job.message())
+                + ",\"createdAt\":" + json(job.createdAt())
+                + ",\"startedAt\":" + json(job.startedAt())
+                + ",\"finishedAt\":" + json(job.finishedAt())
+                + ",\"logs\":" + jsonArray(job.logs())
+                + "}}";
     }
 
     private String buildMinecraftProfilesJson() {
@@ -705,6 +985,12 @@ public final class PanelApiV1Service {
         if (raw == null) return "";
         String id = raw.trim().toLowerCase(Locale.ROOT);
         return id.matches("[a-z0-9][a-z0-9_-]{0,47}") ? id : "";
+    }
+
+    private static String cleanDistroName(String raw) {
+        if (raw == null) return "";
+        String name = raw.trim().toLowerCase(Locale.ROOT);
+        return name.matches("[a-z0-9][a-z0-9._-]{0,63}") ? name : "";
     }
 
     private static String numberOrZero(String raw) {

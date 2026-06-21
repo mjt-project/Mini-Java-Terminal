@@ -12,7 +12,6 @@ import main.java.mjt.command.CommandContext;
 import main.java.mjt.services.cloudflare.CloudflareDnsService;
 import main.java.mjt.services.code.OpenVscodeService;
 import main.java.mjt.services.cloudflare.tunnel.CloudflareTunnelService;
-import main.java.mjt.services.cloudflare.tunnel.GuestWebsiteService;
 import main.java.mjt.services.gateway.GatewayService;
 import main.java.mjt.services.http.HttpService;
 import main.java.mjt.services.https.HttpsService;
@@ -22,6 +21,7 @@ import main.java.mjt.services.panel.PanelApiV1Service;
 import main.java.mjt.services.panel.PanelFrontendInstallerService;
 import main.java.mjt.services.panel.PanelService;
 import main.java.mjt.services.proot.ProotService;
+import main.java.mjt.services.proot.ProotDistroService;
 import main.java.mjt.services.service.GuestServiceManager;
 import main.java.mjt.services.sshd.SshServerService;
 import main.java.mjt.services.workspace.WorkspaceFileService;
@@ -54,7 +54,8 @@ public class Main {
             CommandGuard commandGuard = new CommandGuard(logService);
             SystemDownloadService systemDownloadService = new SystemDownloadService(stateStore, logService);
             TargetProcessService targetProcessService = new TargetProcessService(logService);
-            ProotService prootService = new ProotService(stateStore, logService);
+            ProotDistroService prootDistroService = new ProotDistroService(stateStore, logService);
+            ProotService prootService = new ProotService(stateStore, logService, prootDistroService);
             MinecraftProcessManagerService minecraftProcessManagerService = new MinecraftProcessManagerService(stateStore, logService, prootService);
             MinecraftInstallerService minecraftInstallerService = new MinecraftInstallerService(stateStore, logService);
             WorkspaceRegistryService workspaceRegistryService = new WorkspaceRegistryService(stateStore);
@@ -75,12 +76,6 @@ public class Main {
             HttpService httpService = new HttpService(stateStore, logService);
             HttpsService httpsService = new HttpsService(stateStore, logService);
             GatewayService gatewayService = new GatewayService(logService, stateStore);
-            GuestWebsiteService guestWebsiteService = new GuestWebsiteService(
-                    stateStore,
-                    logService,
-                    httpService,
-                    cloudflareTunnelService
-            );
             OpenVscodeService openVscodeService = new OpenVscodeService(stateStore, logService, prootService);
             GuestServiceManager guestServiceManager = new GuestServiceManager(
                     stateStore,
@@ -94,7 +89,8 @@ public class Main {
                     stateStore,
                     logService,
                     minecraftProcessManagerService,
-                    guestServiceManager
+                    guestServiceManager,
+                    prootDistroService
             );
 
             CommandContext commandContext = new CommandContext(
@@ -107,7 +103,6 @@ public class Main {
                     systemDownloadService,
                     cloudflareDnsService,
                     cloudflareTunnelService,
-                    guestWebsiteService,
                     sshServerService,
                     gatewayService,
                     httpService,
@@ -121,6 +116,7 @@ public class Main {
                     workspaceRegistryService,
                     workspaceFileService,
                     prootService,
+                    prootDistroService,
                     openVscodeService,
                     guestServiceManager,
                     panelApiV1Service
@@ -150,11 +146,20 @@ public class Main {
             sshServerService.setCommandCenter(commandCenter);
 
             printStartupMessage(logService, runtimeConfig, stateStore);
-            httpService.start();
+            // Legacy static HTTP sites are opt-in. New applications are managed
+            // as PRoot guest services and exposed only through explicit Tunnel routes.
+            if (stateStore.getBoolean("http.legacy.autoStart", false)) {
+                System.out.println(YELLOW + "[HTTP] Starting legacy HTTP site manager (explicit opt-in)." + RESET);
+                httpService.start();
+            }
             if (stateStore.getBoolean("https.enabled", false)) {
                 httpsService.start();
             }
-            gatewayService.start();
+            // The TCP Gateway is an explicit opt-in. Core and guest services
+            // stay private unless the operator deliberately enables it.
+            if (stateStore.getBoolean("gateway.autoStart", false)) {
+                gatewayService.start();
+            }
             if (stateStore.getBoolean("panel.enabled", false) && stateStore.getBoolean("panel.autoStart", true)) {
                 panelService.start();
             }
@@ -242,12 +247,13 @@ public class Main {
         System.out.println(" .mjt proot test - Verify APT inside PRootFS");
         System.out.println(" .mjt code start - Start OpenVSCode Server inside PRootFS");
         System.out.println(" .mjt service list - List generic PRoot guest services");
-        System.out.println(" .mjt website list - Show HTTP websites");
+        System.out.println(" .mjt service list - List managed guest applications");
+        System.out.println(" .mjt help website - Show legacy website migration guidance");
         System.out.println(" .mjt panel start - Start legacy local panel server");
         System.out.println(" .mjt panel api show - Show v1 panel control API status");
         System.out.println(" .mjt system install cloudflared - Auto install cloudflared binary");
         System.out.println(" .mjt tunnel show - Show Cloudflare Tunnel config");
-        System.out.println(" .mjt gateway show - Show Gateway router config");
+        System.out.println(" .mjt gateway show - Review optional Gateway router config");
         System.out.println(" .mjt minecraft start - Start Minecraft managed target");
         System.out.println(" .mjt ssh show - Show SSH/SFTP config");
         System.out.println(" .mjt exit - Stop Mini Java Terminal");
