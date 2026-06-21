@@ -609,7 +609,7 @@ public final class ProotDistroToolInstaller {
                         setMode(target, mode);
                     }
                     case '2' -> {
-                        ensureNoSymlinkParents(destination, target.getParent());
+                        ensureNoSymlinkParents(destination, target.getParent()); Files.createDirectories(target.getParent()); ensureNoSymlinkParents(destination, target.getParent());
                         Path linkTarget = safeRelativeLink(destination, target, linkName);
                         Files.deleteIfExists(target);
                         Files.createSymbolicLink(target, linkTarget);
