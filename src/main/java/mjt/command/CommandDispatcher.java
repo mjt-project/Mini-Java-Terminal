@@ -185,6 +185,11 @@ public class CommandDispatcher {
             return;
         }
 
+        if (context.prootService().isShellRoutingEnabled()) {
+            context.prootService().execute(shellCommand);
+            return;
+        }
+
         context.shellRunner().run(
                 shellCommand,
                 context.runtimeConfig().getCurrentDir(),
@@ -280,6 +285,10 @@ public class CommandDispatcher {
         if (lower.startsWith("mc profile use ")) return "minecraft-profile-use " + raw.substring("mc profile use ".length()).trim();
         if (lower.startsWith("minecraft profile add ")) return "minecraft-profile-add " + raw.substring("minecraft profile add ".length()).trim();
         if (lower.startsWith("mc profile add ")) return "minecraft-profile-add " + raw.substring("mc profile add ".length()).trim();
+        if (lower.startsWith("minecraft profile set ")) return "minecraft-profile-set " + raw.substring("minecraft profile set ".length()).trim();
+        if (lower.startsWith("mc profile set ")) return "minecraft-profile-set " + raw.substring("mc profile set ".length()).trim();
+        if (lower.startsWith("minecraft profile runtime ")) return "minecraft-profile-runtime " + raw.substring("minecraft profile runtime ".length()).trim();
+        if (lower.startsWith("mc profile runtime ")) return "minecraft-profile-runtime " + raw.substring("mc profile runtime ".length()).trim();
         if (lower.startsWith("minecraft set ")) return "minecraft-set " + raw.substring("minecraft set ".length()).trim();
         if (lower.equals("minecraft installer show") || lower.equals("minecraft install show") || lower.equals("mc installer show")) return "minecraft-installer-show";
         if (lower.startsWith("minecraft install ")) return "minecraft-install " + raw.substring("minecraft install ".length()).trim();
@@ -293,7 +302,41 @@ public class CommandDispatcher {
         if (lower.startsWith("workspace add ")) return "workspace-add " + raw.substring("workspace add ".length()).trim();
         if (lower.startsWith("workspace remove ")) return "workspace-remove " + raw.substring("workspace remove ".length()).trim();
 
+        if (lower.equals("proot") || lower.equals("proot show") || lower.equals("proot status")) return "proot-show";
+        if (lower.equals("proot init")) return "proot-init";
+        if (lower.equals("proot test")) return "proot-test";
+        if (lower.equals("proot enter")) return "proot-enter";
+        if (lower.equals("proot leave")) return "proot-leave";
+        if (lower.startsWith("proot set ")) return "proot-set " + raw.substring("proot set ".length()).trim();
+        if (lower.startsWith("proot exec ")) return "proot-exec " + raw.substring("proot exec ".length()).trim();
+
+        if (lower.equals("service") || lower.equals("service list") || lower.equals("services") || lower.equals("services list")) return "service-list";
+        if (lower.startsWith("service show ")) return "service-show " + raw.substring("service show ".length()).trim();
+        if (lower.startsWith("service add ")) return "service-add " + raw.substring("service add ".length()).trim();
+        if (lower.startsWith("service remove ")) return "service-remove " + raw.substring("service remove ".length()).trim();
+        if (lower.startsWith("service start ")) return "service-start " + raw.substring("service start ".length()).trim();
+        if (lower.startsWith("service stop ")) return "service-stop " + raw.substring("service stop ".length()).trim();
+        if (lower.startsWith("service restart ")) return "service-restart " + raw.substring("service restart ".length()).trim();
+        if (lower.startsWith("service logs ")) return "service-logs " + raw.substring("service logs ".length()).trim();
+        if (lower.startsWith("service health ")) return "service-health " + raw.substring("service health ".length()).trim();
+        if (lower.startsWith("service check ")) return "service-health " + raw.substring("service check ".length()).trim();
+        if (lower.startsWith("service set ")) return "service-set " + raw.substring("service set ".length()).trim();
+        if (lower.startsWith("service publish ")) return "service-publish " + raw.substring("service publish ".length()).trim();
+        if (lower.startsWith("service unpublish ")) return "service-unpublish " + raw.substring("service unpublish ".length()).trim();
+
+        if (lower.equals("code") || lower.equals("code show") || lower.equals("code status") || lower.equals("openvscode show") || lower.equals("openvscode status")) return "code-show";
+        if (lower.equals("code start") || lower.equals("openvscode start")) return "code-start";
+        if (lower.equals("code stop") || lower.equals("openvscode stop")) return "code-stop";
+        if (lower.equals("code restart") || lower.equals("openvscode restart")) return "code-restart";
+        if (lower.equals("code token reset") || lower.equals("code reset-token") || lower.equals("openvscode token reset")) return "code-token-reset";
+        if (lower.startsWith("code set ")) return "code-set " + raw.substring("code set ".length()).trim();
+        if (lower.startsWith("openvscode set ")) return "code-set " + raw.substring("openvscode set ".length()).trim();
+
         if (lower.equals("panel help")) return "help-topic panel";
+        if (lower.equals("panel api show") || lower.equals("panel api status")) return "panel-api-show";
+        if (lower.equals("panel api start")) return "panel-api-start";
+        if (lower.equals("panel api stop")) return "panel-api-stop";
+        if (lower.startsWith("panel api set ")) return "panel-api-set " + raw.substring("panel api set ".length()).trim();
         if (lower.equals("panel show") || lower.equals("panel status")) return "panel-show";
         if (lower.equals("panel start")) return "panel-start";
         if (lower.equals("panel stop")) return "panel-stop";
@@ -435,6 +478,157 @@ public class CommandDispatcher {
             return true;
         }
 
+        if (command.equalsIgnoreCase("proot-show")) {
+            context.prootService().showConfig();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("proot-init")) {
+            context.prootService().initialize();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("proot-test")) {
+            context.prootService().test();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("proot-enter")) {
+            context.prootService().enterGuestRouting();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("proot-leave")) {
+            context.prootService().leaveGuestRouting();
+            return true;
+        }
+
+        if (command.startsWith("proot-set ")) {
+            String raw = command.substring("proot-set ".length()).trim();
+            int firstSpace = raw.indexOf(' ');
+            if (firstSpace <= 0) {
+                System.out.println(RED + "Usage: .mjt proot set <key> <value>" + RESET);
+                return true;
+            }
+            context.prootService().setConfig(raw.substring(0, firstSpace), raw.substring(firstSpace + 1));
+            return true;
+        }
+
+        if (command.startsWith("proot-exec ")) {
+            context.prootService().execute(command.substring("proot-exec ".length()).trim());
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("service-list")) {
+            context.guestServiceManager().listServices();
+            return true;
+        }
+
+        if (command.startsWith("service-show ")) {
+            context.guestServiceManager().showService(command.substring("service-show ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("service-add ")) {
+            context.guestServiceManager().addService(command.substring("service-add ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("service-remove ")) {
+            context.guestServiceManager().removeService(command.substring("service-remove ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("service-start ")) {
+            context.guestServiceManager().startService(command.substring("service-start ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("service-stop ")) {
+            context.guestServiceManager().stopService(command.substring("service-stop ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("service-restart ")) {
+            context.guestServiceManager().restartService(command.substring("service-restart ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("service-logs ")) {
+            String raw = command.substring("service-logs ".length()).trim();
+            String[] parts = raw.split("\\s+", 2);
+            if (parts.length == 0 || parts[0].isBlank()) {
+                System.out.println(RED + "Usage: .mjt service logs <id> [lines]" + RESET);
+                return true;
+            }
+            int lines = 200;
+            if (parts.length > 1) {
+                try {
+                    lines = Integer.parseInt(parts[1].trim());
+                } catch (NumberFormatException ignored) {
+                    System.out.println(YELLOW + "[Service] Invalid line count; using 200." + RESET);
+                }
+            }
+            context.guestServiceManager().printLogs(parts[0], lines);
+            return true;
+        }
+
+        if (command.startsWith("service-health ")) {
+            context.guestServiceManager().runHealthCheck(command.substring("service-health ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("service-set ")) {
+            context.guestServiceManager().setServiceConfig(command.substring("service-set ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("service-publish ")) {
+            context.guestServiceManager().publishService(command.substring("service-publish ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("service-unpublish ")) {
+            context.guestServiceManager().unpublishService(command.substring("service-unpublish ".length()).trim());
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("code-show")) {
+            context.openVscodeService().showConfig();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("code-start")) {
+            context.openVscodeService().start();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("code-stop")) {
+            context.openVscodeService().stop();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("code-restart")) {
+            context.openVscodeService().restart();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("code-token-reset")) {
+            context.openVscodeService().resetToken();
+            return true;
+        }
+
+        if (command.startsWith("code-set ")) {
+            String raw = command.substring("code-set ".length()).trim();
+            int firstSpace = raw.indexOf(' ');
+            if (firstSpace <= 0) {
+                System.out.println(RED + "Usage: .mjt code set <key> <value>" + RESET);
+                return true;
+            }
+            context.openVscodeService().setConfig(raw.substring(0, firstSpace), raw.substring(firstSpace + 1));
+            return true;
+        }
+
         if (command.equalsIgnoreCase("workspace-sync")) {
             context.workspaceRegistryService().syncMinecraftProfiles();
             System.out.println("[WORKSPACE] Minecraft profiles synchronized.");
@@ -460,6 +654,26 @@ public class CommandDispatcher {
             }
             context.workspaceRegistryService().registerExisting(parts[0], parts[1], parts[0], parts[2], "", "", "");
             System.out.println("[WORKSPACE] Registered: " + parts[0]);
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("panel-api-show")) {
+            context.panelApiV1Service().showConfig();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("panel-api-start")) {
+            context.panelApiV1Service().start();
+            return true;
+        }
+
+        if (command.equalsIgnoreCase("panel-api-stop")) {
+            context.panelApiV1Service().stop();
+            return true;
+        }
+
+        if (command.startsWith("panel-api-set ")) {
+            handlePanelApiSet(command);
             return true;
         }
 
@@ -748,6 +962,16 @@ public class CommandDispatcher {
 
         if (command.startsWith("minecraft-profile-add ")) {
             addMinecraftProfile(command.substring("minecraft-profile-add ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("minecraft-profile-set ")) {
+            handleMinecraftProfileSet(command.substring("minecraft-profile-set ".length()).trim());
+            return true;
+        }
+
+        if (command.startsWith("minecraft-profile-runtime ")) {
+            handleMinecraftProfileRuntime(command.substring("minecraft-profile-runtime ".length()).trim());
             return true;
         }
 
@@ -1381,6 +1605,24 @@ public class CommandDispatcher {
         }
     }
 
+    private void handlePanelApiSet(String command) {
+        String raw = command.substring("panel-api-set ".length()).trim();
+        int firstSpace = raw.indexOf(' ');
+        if (firstSpace <= 0) {
+            System.out.println(RED + "Usage: .mjt panel api set <key> <value>" + RESET);
+            System.out.println("Valid keys: enabled, autostart, host, port, cors-origins");
+            return;
+        }
+        try {
+            context.panelApiV1Service().setConfig(
+                    raw.substring(0, firstSpace),
+                    raw.substring(firstSpace + 1)
+            );
+        } catch (Exception e) {
+            System.out.println(RED + "[Panel API] Error saving config: " + e.getMessage() + RESET);
+        }
+    }
+
     private void handlePanelSet(String command) {
         String raw = command.substring("panel-set ".length()).trim();
         int firstSpace = raw.indexOf(' ');
@@ -1396,6 +1638,39 @@ public class CommandDispatcher {
             context.panelService().setConfig(key, value);
         } catch (Exception e) {
             System.out.println(RED + "[Panel] Error saving config: " + e.getMessage() + RESET);
+        }
+    }
+
+    private void handleMinecraftProfileSet(String raw) {
+        String[] parts = raw.trim().split("\\s+", 3);
+        if (parts.length < 3) {
+            System.out.println(RED + "Usage: .mjt minecraft profile set <name> runtime <host|proot>" + RESET);
+            return;
+        }
+        String profile = normalizeProfileName(parts[0]);
+        String key = parts[1].trim().toLowerCase();
+        String value = parts[2].trim();
+        if (!key.equals("runtime")) {
+            System.out.println(RED + "Only profile key supported here is: runtime" + RESET);
+            return;
+        }
+        try {
+            context.minecraftProcessManagerService().setProfileRuntime(profile, value);
+        } catch (Exception e) {
+            System.out.println(RED + "[Minecraft] Profile config error: " + e.getMessage() + RESET);
+        }
+    }
+
+    private void handleMinecraftProfileRuntime(String raw) {
+        String[] parts = raw.trim().split("\\s+", 2);
+        if (parts.length < 2) {
+            System.out.println(RED + "Usage: .mjt minecraft profile runtime <name> <host|proot>" + RESET);
+            return;
+        }
+        try {
+            context.minecraftProcessManagerService().setProfileRuntime(parts[0], parts[1]);
+        } catch (Exception e) {
+            System.out.println(RED + "[Minecraft] Runtime error: " + e.getMessage() + RESET);
         }
     }
 

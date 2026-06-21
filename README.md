@@ -1,49 +1,11 @@
-# MJT — Workspace Foundation
+# MJT PRoot Cumulative Overlay — Phase 5
 
-This patch turns MJT from a Minecraft-only panel backend into a workspace-oriented control core.
+This cumulative Core overlay contains:
 
-## Root model
+1. **Phase 1:** PRoot runtime foundation, rootfs/workspace configuration and explicit guest shell commands.
+2. **Phase 2:** Minecraft PRoot runtime option and OpenVSCode Server in PRootFS.
+3. **Phase 3:** Generic PRoot guest service manager for Node, Java, Python and custom workloads.
+4. **Phase 4:** Opt-in guest-service lifecycle management: autostart, restart policy, loopback health checks and port preflight.
+5. **Phase 5:** Panel-first Control API v1 for guest services, network metadata, logs and bounded SSE.
 
-```text
-/home/container/MJT     -> MJT control plane
-/home/container/server  -> panel-managed workspace root
-```
-
-Minecraft, websites, Node applications, Python applications and configuration folders can all be registered as workspaces below `/home/container/server`.
-
-## New commands
-
-```text
-.mjt workspace list
-.mjt workspace show <id>
-.mjt workspace sync
-.mjt workspace add <id> <type> <path>
-.mjt workspace remove <id>
-```
-
-`workspace add` registers an existing folder only. It never deletes the folder.
-
-## Files API safety model
-
-The browser sends a workspace ID plus a relative path:
-
-```json
-{ "workspace": "smp", "path": "server.properties" }
-```
-
-The Java core resolves it inside the registered workspace root. Absolute paths, `../` traversal and symlink escape are rejected.
-
-## Install
-
-Overlay this patch onto `3.0.0-SNAPSHOT+8`, then build:
-
-```bash
-mvn -U clean package
-```
-
-After first start inspect:
-
-```text
-.mjt workspace list
-.mjt panel start
-```
+Read `docs/PANEL-API-V1-PHASE-5.md` before publishing the panel or control API.
