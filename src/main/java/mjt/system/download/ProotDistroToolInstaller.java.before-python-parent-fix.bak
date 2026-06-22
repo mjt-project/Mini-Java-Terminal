@@ -148,7 +148,7 @@ public final class ProotDistroToolInstaller {
     public synchronized Path installPython(Consumer<String> sink) throws IOException {
         requireSupportedHost();
         Consumer<String> log = sink == null ? ignored -> { } : sink;
-        Path current = findPythonExecutable(pythonRoot());
+        Path current = pythonRoot().resolve("bin/python3");
         if (isPythonReady(current)) {
             log.accept("Using existing MJT-managed Python: " + current);
             return current;
@@ -169,9 +169,12 @@ public final class ProotDistroToolInstaller {
             log.accept("Extracting portable Python safely...");
             extractTarGz(archive, staging, log);
             Path extractedRoot = locatePythonRoot(staging);
-            Path executable = findPythonExecutable(extractedRoot);
+            Path executable = extractedRoot.resolve("bin/python3");
             if (!isPythonReady(executable)) {
-                throw new IOException("Portable Python extracted but no usable Python executable could start.");
+                executable = extractedRoot.resolve("bin/python");
+            }
+            if (!isPythonReady(executable)) {
+                throw new IOException("Portable Python extracted but python3 could not start.");
             }
             replaceDirectory(extractedRoot, pythonRoot());
         } finally {
@@ -179,7 +182,10 @@ public final class ProotDistroToolInstaller {
             Files.deleteIfExists(archive);
         }
 
-        Path python = findPythonExecutable(pythonRoot());
+        Path python = pythonRoot().resolve("bin/python3");
+        if (!isPythonReady(python)) {
+            python = pythonRoot().resolve("bin/python");
+        }
         if (!isPythonReady(python)) {
             throw new IOException("MJT portable Python validation failed after activation.");
         }
@@ -603,7 +609,7 @@ public final class ProotDistroToolInstaller {
                         setMode(target, mode);
                     }
                     case '2' -> {
-                        ensureNoSymlinkParents(destination, target.getParent()); Files.createDirectories(target.getParent()); ensureNoSymlinkParents(destination, target.getParent());
+                        ensureNoSymlinkParents(destination, target.getParent());
                         Path linkTarget = safeRelativeLink(destination, target, linkName);
                         Files.deleteIfExists(target);
                         Files.createSymbolicLink(target, linkTarget);
@@ -629,45 +635,18 @@ public final class ProotDistroToolInstaller {
     }
 
     private Path locatePythonRoot(Path staging) throws IOException {
+        List<Path> candidates = new ArrayList<>();
         try (var stream = Files.walk(staging, 6)) {
-            return stream
-                    .filter(Files::isDirectory)
-                    .filter(root -> findPythonExecutable(root) != null)
-                    .findFirst()
-                    .orElseThrow(() -> new IOException(
-                            "Unable to locate a portable Python installation in the downloaded archive."
-                    ));
-        }
-    }
-
-    private Path findPythonExecutable(Path root) {
-        if (root == null) return null;
-
-        Path bin = root.resolve("bin");
-        if (!Files.isDirectory(bin)) return null;
-
-        for (String name : List.of("python3", "python")) {
-            Path candidate = bin.resolve(name);
-            if (Files.isRegularFile(candidate) && Files.isExecutable(candidate)) {
-                return candidate;
-            }
-        }
-
-        try (var stream = Files.list(bin)) {
-            return stream
-                    .filter(path -> {
-                        Path fileName = path.getFileName();
-                        return fileName != null
-                                && fileName.toString().matches("python3\\.\\d+(?:\\.\\d+)?");
-                    })
+            stream.filter(path -> path.getFileName() != null && path.getFileName().toString().equals("python3"))
                     .filter(Files::isRegularFile)
-                    .filter(Files::isExecutable)
-                    .sorted()
-                    .findFirst()
-                    .orElse(null);
-        } catch (Exception ignored) {
-            return null;
+                    .forEach(candidates::add);
         }
+        for (Path candidate : candidates) {
+            Path bin = candidate.getParent();
+            Path root = bin == null ? null : bin.getParent();
+            if (root != null && Files.isDirectory(root.resolve("lib"))) return root;
+        }
+        throw new IOException("Unable to locate a portable Python installation in the downloaded archive.");
     }
 
     private void replaceDirectory(Path source, Path target) throws IOException {
@@ -783,8 +762,7 @@ public final class ProotDistroToolInstaller {
     private Map<String, String> managedEnvironment() {
         Map<String, String> env = new LinkedHashMap<>();
         String oldPath = System.getenv("PATH");
-        String managedPath = managedBinDir() + ":" + pythonRoot().resolve("bin");
-        env.put("PATH", managedPath + (oldPath == null || oldPath.isBlank() ? "" : ":" + oldPath));
+        env.put("PATH", managedBinDir() + (oldPath == null || oldPath.isBlank() ? "" : ":" + oldPath));
         env.put("XDG_DATA_HOME", xdgDataHome().toString());
         env.put("XDG_CACHE_HOME", xdgCacheHome().toString());
         env.put("PD_FORCE_NO_COLORS", "1");
