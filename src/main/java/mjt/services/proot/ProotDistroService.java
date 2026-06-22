@@ -27,7 +27,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import main.java.mjt.system.LogService;
 import main.java.mjt.system.StateStore;
-import main.java.mjt.system.download.ProotDistroToolInstaller;
+import main.java.mjt.system.download.ProotDistroInstaller;
+import main.java.mjt.system.download.PortablePythonInstaller;
 
 /**
  * MJT adapter around the upstream proot-distro executable.
@@ -447,8 +448,13 @@ public final class ProotDistroService {
         initializeDirectories();
         job.log("Preparing MJT-managed PRoot, portable Python and upstream proot-distro...");
 
-        ProotDistroToolInstaller installer = new ProotDistroToolInstaller(stateStore, logService);
-        ProotDistroToolInstaller.EnginePaths paths = installer.installAll(version, job::log);
+        PortablePythonInstaller pythonInstaller = new PortablePythonInstaller(stateStore, logService);
+        ProotDistroInstaller installer = new ProotDistroInstaller(
+                stateStore,
+                logService,
+                pythonInstaller
+        );
+        ProotDistroInstaller.EnginePaths paths = installer.install(version, job::log);
 
         stateStore.set("proot.binary", paths.proot().toString());
         stateStore.set(KEY_PYTHON, paths.python().toString());

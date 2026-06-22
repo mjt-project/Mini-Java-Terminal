@@ -35,7 +35,9 @@ public class SystemDownloadService {
     private final StateStore stateStore;
     private final LogService logService;
     private final HttpClient httpClient;
-    private final ProotDistroToolInstaller prootDistroToolInstaller;
+    private final ProotDistroInstaller prootDistroToolInstaller;
+    private final PortablePythonInstaller portablePythonInstaller;
+    
 
     public SystemDownloadService(StateStore stateStore, LogService logService) {
         this.stateStore = stateStore;
@@ -44,7 +46,12 @@ public class SystemDownloadService {
                 .connectTimeout(Duration.ofSeconds(20))
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
-        this.prootDistroToolInstaller = new ProotDistroToolInstaller(stateStore, logService);
+        this.portablePythonInstaller = new PortablePythonInstaller(stateStore, logService);
+        this.prootDistroToolInstaller = new ProotDistroInstaller(
+                stateStore,
+                logService,
+                portablePythonInstaller
+        );
     }
 
     public void showCloudflared() {
@@ -186,12 +193,22 @@ public class SystemDownloadService {
     public void installPortablePython() {
         try {
             System.out.println(CYAN + "[MJT SYSTEM - PYTHON]" + RESET);
-            Path path = prootDistroToolInstaller.installPython(System.out::println);
+            Path path = portablePythonInstaller.install(System.out::println);
             System.out.println(GREEN + "[MJT SYSTEM] Portable Python ready: " + path + RESET);
         } catch (Exception e) {
             trySet("system.download.python.status", "failed");
             System.out.println(RED + "[MJT SYSTEM] Python install failed: " + safeMessage(e) + RESET);
         }
+    }
+
+    /** Prints only the MJT-managed portable Python status. */
+    public void showPortablePython() {
+        portablePythonInstaller.printStatus();
+    }
+
+    /** Checks only the MJT-managed portable Python runtime. */
+    public boolean checkPortablePython(boolean quiet) {
+        return portablePythonInstaller.check(quiet);
     }
 
     /**
@@ -202,8 +219,11 @@ public class SystemDownloadService {
     public void installProotDistro() {
         try {
             System.out.println(CYAN + "[MJT SYSTEM - PROOT-DISTRO]" + RESET);
-            ProotDistroToolInstaller.EnginePaths paths =
-                    prootDistroToolInstaller.installAll(ProotDistroToolInstaller.DEFAULT_PROOT_DISTRO_VERSION, System.out::println);
+            ProotDistroInstaller.EnginePaths paths =
+                    prootDistroToolInstaller.install(
+                            ProotDistroInstaller.DEFAULT_PROOT_DISTRO_VERSION,
+                            System.out::println
+                    );
             System.out.println(GREEN + "[MJT SYSTEM] Environment engine ready." + RESET);
             System.out.println("PRoot        : " + paths.proot());
             System.out.println("Python       : " + paths.python());
