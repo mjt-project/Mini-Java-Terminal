@@ -99,8 +99,9 @@ public final class PortablePythonInstaller {
 
             Path extractedRoot = locatePythonRoot(staging);
             Path executable = findPythonExecutable(extractedRoot);
+            ensureExecutable(executable);
             if (!isPythonReady(executable)) {
-                throw new IOException("Portable Python extracted but no usable Python executable could start.");
+                throw new IOException("Portable Python extracted but no usable Python executable could start: " + executable);
             }
 
             replaceDirectory(extractedRoot, pythonRoot());
@@ -110,8 +111,9 @@ public final class PortablePythonInstaller {
         }
 
         Path python = currentExecutable();
+        ensureExecutable(python);
         if (!isPythonReady(python)) {
-            throw new IOException("MJT portable Python validation failed after activation.");
+            throw new IOException("MJT portable Python validation failed after activation: " + python);
         }
 
         stateStore.set(KEY_PYTHON, python.toString());
@@ -264,7 +266,7 @@ public final class PortablePythonInstaller {
                 String linkName = tarString(header, 157, 100);
 
                 switch (type) {
-                    case 0, '7' -> {
+                    case 0, '0', '7' -> {
                         expanded += size;
                         if (expanded > MAX_EXPANDED_BYTES) {
                             throw new IOException("Archive expands beyond safe size limit.");
@@ -363,16 +365,34 @@ public final class PortablePythonInstaller {
         }
     }
 
+    /**
+     * Finds the extracted Python root without relying on executable permission
+     * bits. Some bind-mounted container volumes report extracted files as
+     * non-executable until permissions are explicitly restored after untarring.
+     */
     private Path locatePythonRoot(Path staging) throws IOException {
-        try (var stream = Files.walk(staging, 6)) {
-            return stream
-                    .filter(Files::isDirectory)
-                    .filter(root -> findPythonExecutable(root) != null)
-                    .findFirst()
-                    .orElseThrow(() -> new IOException(
-                            "Unable to locate a portable Python installation in the downloaded archive."
-                    ));
+        List<Path> candidates = new ArrayList<>();
+        try (var stream = Files.walk(staging, 8)) {
+            stream.filter(Files::isRegularFile)
+                    .filter(this::isPythonExecutableName)
+                    .forEach(candidates::add);
         }
+
+        for (Path candidate : candidates) {
+            Path bin = candidate.getParent();
+            Path root = bin == null ? null : bin.getParent();
+            if (root != null && Files.isDirectory(root.resolve("bin"))) {
+                return root;
+            }
+        }
+
+        String found = candidates.stream()
+                .map(path -> staging.relativize(path).toString())
+                .limit(12)
+                .reduce((left, right) -> left + ", " + right)
+                .orElse("none");
+        throw new IOException("Unable to locate a portable Python installation in the downloaded archive. "
+                + "Python-like files found: " + found);
     }
 
     private Path findPythonExecutable(Path root) {
@@ -382,22 +402,51 @@ public final class PortablePythonInstaller {
 
         for (String name : List.of("python3", "python")) {
             Path candidate = bin.resolve(name);
-            if (Files.isRegularFile(candidate) && Files.isExecutable(candidate)) return candidate;
+            if (Files.isRegularFile(candidate)) return candidate;
         }
 
         try (var stream = Files.list(bin)) {
             return stream
-                    .filter(path -> {
-                        Path name = path.getFileName();
-                        return name != null && name.toString().matches("python3\\.[0-9]+(?:\\.[0-9]+)?");
-                    })
+                    .filter(this::isPythonExecutableName)
                     .filter(Files::isRegularFile)
-                    .filter(Files::isExecutable)
                     .sorted()
                     .findFirst()
                     .orElse(null);
         } catch (IOException ignored) {
             return null;
+        }
+    }
+
+    private boolean isPythonExecutableName(Path path) {
+        Path fileName = path == null ? null : path.getFileName();
+        if (fileName == null) return false;
+        String name = fileName.toString();
+        return name.equals("python")
+                || name.equals("python3")
+                || name.matches("python3\\.[0-9]+(?:\\.[0-9]+)?");
+    }
+
+    /** Restores execute permission after archive extraction where supported. */
+    private void ensureExecutable(Path executable) throws IOException {
+        if (executable == null || !Files.isRegularFile(executable)) {
+            throw new IOException("Portable Python executable is missing: " + executable);
+        }
+        if (Files.isExecutable(executable)) return;
+
+        try {
+            Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(executable);
+            permissions.add(PosixFilePermission.OWNER_EXECUTE);
+            permissions.add(PosixFilePermission.GROUP_EXECUTE);
+            permissions.add(PosixFilePermission.OTHERS_EXECUTE);
+            Files.setPosixFilePermissions(executable, permissions);
+        } catch (UnsupportedOperationException ignored) {
+            if (!executable.toFile().setExecutable(true, false)) {
+                throw new IOException("Could not mark portable Python executable: " + executable);
+            }
+        }
+
+        if (!Files.isExecutable(executable)) {
+            throw new IOException("Portable Python exists but the host filesystem refuses execute permission: " + executable);
         }
     }
 
