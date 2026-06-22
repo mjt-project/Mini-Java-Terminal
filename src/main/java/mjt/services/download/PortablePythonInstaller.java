@@ -272,10 +272,26 @@ public final class PortablePythonInstaller {
                             throw new IOException("Archive expands beyond safe size limit.");
                         }
                         ensureNoSymlinkParents(destination, target.getParent());
-                        if (Files.isSymbolicLink(target)) {
-                            throw new IOException("Archive file entry would replace a symbolic link: " + name);
-                        }
                         Files.createDirectories(target.getParent());
+                        ensureNoSymlinkParents(destination, target.getParent());
+
+                        /*
+                         * A tar archive may legitimately contain a symlink or
+                         * hard-link entry followed later by a regular file with
+                         * the same name. Replace only the leaf entry; parent
+                         * symlinks remain forbidden by ensureNoSymlinkParents().
+                         *
+                         * Deleting the leaf avoids writing through a symlink and
+                         * breaks any previous hard-link before creating this
+                         * independent regular file.
+                         */
+                        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+                            if (Files.isDirectory(target, LinkOption.NOFOLLOW_LINKS)) {
+                                throw new IOException("Archive file entry would replace a directory: " + name);
+                            }
+                            Files.delete(target);
+                        }
+
                         try (var out = Files.newOutputStream(target)) {
                             copyExactly(tar, out, size);
                         }
