@@ -34,7 +34,7 @@ Mini Java Terminal (MJT) is a Java application for running and managing terminal
 - [Third-Party Notices](#third-party-notices)
 - [License](#license)
 - [Contributing](#contributing)
-
+- [Changelog](#changelog)
 ---
 
 ## Overview
@@ -325,6 +325,12 @@ MJT acknowledges and thanks the **Termux `proot-distro`** project:
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the project notice and distribution guidance.
 
 > **Important licensing boundary:** MJT's own original source is released under MIT. This does **not** relicense GPL-3.0 code. If GPL-3.0 source from `proot-distro` is copied into or linked as part of an MJT distribution, the resulting distribution may need to be licensed and distributed under GPL-3.0 terms. Keep GPL components separate unless you have reviewed the applicable obligations.
+
+---
+
+## Changelog
+
+**Full Changelog**: https://github.com/mjt-project/Mini-Java-Terminal/compare/2.5.0...3.0.0-SNAPSHOT+16
 
 ---
 
