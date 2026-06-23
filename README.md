@@ -2,10 +2,14 @@
 
 > Java-based control plane for terminal workflows, managed runtime tools, secure access, and service operations inside restricted container-hosting environments.
 
+![Version](https://img.shields.io/badge/version-3.0.0--SNAPSHOT%2B16-blue)
 [![Build](https://img.shields.io/badge/build-Maven%20%2B%20Java%2017-2ea44f?style=flat-square)](#build)
-[![Status](https://img.shields.io/badge/status-development%20snapshot-f59e0b?style=flat-square)](#project-status)
+[![Status](https://img.shields.io/badge/status-SNAPSHOT-orange)](#project-status)
 [![License](https://img.shields.io/badge/license-MIT-0d74ce?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20containers-4c8bf5?style=flat-square)](#requirements)
+
+---
+
 
 Mini Java Terminal (MJT) is a Java application for running and managing terminal-oriented services where the host environment is restricted, minimal, or panel-managed. It keeps MJT-owned files inside its workspace, exposes a controlled command model, and provides optional integrations for tunnels, SSH/SFTP, website preview, Minecraft targets, and PRoot-based guest environments.
 
