@@ -35,6 +35,9 @@ public class SystemDownloadService {
     private final StateStore stateStore;
     private final LogService logService;
     private final HttpClient httpClient;
+    private final ProotDistroInstaller prootDistroToolInstaller;
+    private final PortablePythonInstaller portablePythonInstaller;
+    
 
     public SystemDownloadService(StateStore stateStore, LogService logService) {
         this.stateStore = stateStore;
@@ -43,6 +46,12 @@ public class SystemDownloadService {
                 .connectTimeout(Duration.ofSeconds(20))
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
+        this.portablePythonInstaller = new PortablePythonInstaller(stateStore, logService);
+        this.prootDistroToolInstaller = new ProotDistroInstaller(
+                stateStore,
+                logService,
+                portablePythonInstaller
+        );
     }
 
     public void showCloudflared() {
@@ -166,6 +175,77 @@ public class SystemDownloadService {
         }
     }
 
+
+
+    /** Downloads MJT-managed native PRoot only. */
+    public void installProot() {
+        try {
+            System.out.println(CYAN + "[MJT SYSTEM - PROOT]" + RESET);
+            Path path = prootDistroToolInstaller.installProot(System.out::println);
+            System.out.println(GREEN + "[MJT SYSTEM] PRoot ready: " + path + RESET);
+        } catch (Exception e) {
+            trySet("system.download.proot.status", "failed");
+            System.out.println(RED + "[MJT SYSTEM] PRoot install failed: " + safeMessage(e) + RESET);
+        }
+    }
+
+    /** Downloads MJT-managed portable Python only. */
+    public void installPortablePython() {
+        try {
+            System.out.println(CYAN + "[MJT SYSTEM - PYTHON]" + RESET);
+            Path path = portablePythonInstaller.install(System.out::println);
+            System.out.println(GREEN + "[MJT SYSTEM] Portable Python ready: " + path + RESET);
+        } catch (Exception e) {
+            trySet("system.download.python.status", "failed");
+            System.out.println(RED + "[MJT SYSTEM] Python install failed: " + safeMessage(e) + RESET);
+        }
+    }
+
+    /** Prints only the MJT-managed portable Python status. */
+    public void showPortablePython() {
+        portablePythonInstaller.printStatus();
+    }
+
+    /** Checks only the MJT-managed portable Python runtime. */
+    public boolean checkPortablePython(boolean quiet) {
+        return portablePythonInstaller.check(quiet);
+    }
+
+    /**
+     * Installs the complete MJT environment engine. Dependencies are resolved
+     * in order: native PRoot, portable Python, then the pinned upstream
+     * proot-distro package. No host package manager and no Docker are used.
+     */
+    public void installProotDistro() {
+        try {
+            System.out.println(CYAN + "[MJT SYSTEM - PROOT-DISTRO]" + RESET);
+            ProotDistroInstaller.EnginePaths paths =
+                    prootDistroToolInstaller.install(
+                            ProotDistroInstaller.DEFAULT_PROOT_DISTRO_VERSION,
+                            System.out::println
+                    );
+            System.out.println(GREEN + "[MJT SYSTEM] Environment engine ready." + RESET);
+            System.out.println("PRoot        : " + paths.proot());
+            System.out.println("Python       : " + paths.python());
+            System.out.println("proot-distro : " + paths.prootDistro() + " | " + paths.prootDistroVersion());
+        } catch (Exception e) {
+            trySet("system.download.proot-distro.status", "failed");
+            System.out.println(RED + "[MJT SYSTEM] proot-distro install failed: " + safeMessage(e) + RESET);
+        }
+    }
+
+    public boolean checkProotDistro(boolean quiet) {
+        return prootDistroToolInstaller.check(quiet);
+    }
+
+    public void showProotDistro() {
+        prootDistroToolInstaller.printStatus();
+    }
+
+    private static String safeMessage(Exception exception) {
+        String message = exception.getMessage();
+        return message == null || message.isBlank() ? exception.getClass().getSimpleName() : message;
+    }
     private void downloadToFile(String url, Path outputFile) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))

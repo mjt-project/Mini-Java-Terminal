@@ -7,6 +7,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 
 public class TargetProcessService {
     private static final String RESET = "\u001B[0m";
@@ -23,6 +26,8 @@ public class TargetProcessService {
     private String startCommand = "";
     private Path workingDirectory;
     private Runnable onExit;
+    private final ArrayDeque<String> outputLines = new ArrayDeque<>();
+    private static final int MAX_OUTPUT_LINES = 2000;
 
     public TargetProcessService(LogService logService) {
         this.logService = logService;
@@ -85,6 +90,10 @@ public class TargetProcessService {
         );
         watcherThread.setDaemon(true);
         watcherThread.start();
+
+        addOutputLine("[TARGET] Started: " + targetName);
+        addOutputLine("[TARGET] Command: " + startCommand);
+        addOutputLine("[TARGET] Workdir : " + workingDirectory);
 
         System.out.println(GREEN + "[TARGET] Started: " + targetName + RESET);
         System.out.println(CYAN + "[TARGET] Command: " + startCommand + RESET);
@@ -153,6 +162,23 @@ public class TargetProcessService {
         System.out.println("Workdir : " + (workingDirectory == null ? "none" : workingDirectory));
     }
 
+
+    public synchronized List<String> getRecentOutputLines(int maxLines) {
+        int limit = maxLines <= 0 ? 200 : Math.min(maxLines, MAX_OUTPUT_LINES);
+        List<String> all = new ArrayList<>(outputLines);
+        if (all.size() <= limit) {
+            return all;
+        }
+        return new ArrayList<>(all.subList(all.size() - limit, all.size()));
+    }
+
+    private synchronized void addOutputLine(String line) {
+        outputLines.addLast(line == null ? "" : line);
+        while (outputLines.size() > MAX_OUTPUT_LINES) {
+            outputLines.removeFirst();
+        }
+    }
+
     private ProcessBuilder createProcessBuilder(String command) {
         String osName = System.getProperty("os.name", "").toLowerCase();
 
@@ -171,6 +197,7 @@ public class TargetProcessService {
 
             while ((line = reader.readLine()) != null) {
                 System.out.println(line);
+                addOutputLine(line);
                 logService.write("[TARGET OUTPUT] " + line + "\n");
             }
 

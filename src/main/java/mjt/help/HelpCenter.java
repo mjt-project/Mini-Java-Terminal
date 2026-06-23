@@ -16,12 +16,16 @@ public final class HelpCenter {
         cmd(".mjt help system", "Runtime, cd, pwd, timeout, version");
         cmd(".mjt help shell", "Safe shell routing and .command usage");
         cmd(".mjt help download", "Install required binaries such as cloudflared");
-        cmd(".mjt help minecraft", "Managed Minecraft target commands");
+        cmd(".mjt help proot", "PRoot guest runtime, APT rootfs and command routing");
+        cmd(".mjt help minecraft", "Managed Minecraft target commands and server profiles");
+        cmd(".mjt help panel", "Lightweight Minecraft control panel");
 
         section("Website");
         cmd(".mjt help website", "Local website / HTTP site manager");
         cmd(".mjt help guest", "Guest website + Cloudflare Quick Tunnel");
         cmd(".mjt help tunnel", "cloudflared binary, quick/token/config modes");
+        cmd(".mjt help code", "OpenVSCode Server in the PRootFS");
+        cmd(".mjt help service", "Generic PRoot service manager (Node, Java, Python)");
 
         section("Services");
         cmd(".mjt help gateway", "TCP gateway / Minecraft fallback / SSH proxy");
@@ -49,6 +53,20 @@ public final class HelpCenter {
                 cmd(".mjt timeout <seconds>", "Set shell command timeout, 0 = unlimited");
                 return;
 
+            case "proot":
+            case "guest-runtime":
+                title("PRoot Guest Runtime Help");
+                System.out.println("PRoot keeps apt, dpkg and guest packages under MJT/system/rootfs.");
+                cmd(".mjt proot init", "Create MJT runtime directories and policy-rc.d after rootfs bootstrap");
+                cmd(".mjt proot show", "Show PRoot binary/rootfs/workspace readiness");
+                cmd(".mjt proot test", "Verify id, apt and guest rootfs execution");
+                cmd(".mjt proot exec apt update", "Run one command inside guest PRootFS");
+                cmd(".mjt proot exec apt install nano htop", "Install guest-only packages without host sudo");
+                cmd(".mjt proot enter", "Route .command calls into the guest rootfs");
+                cmd(".mjt proot leave", "Return .command calls to the host shell");
+                cmd(".mjt proot set rootfs <path>", "Set guest rootfs location");
+                return;
+
             case "download":
             case "installer":
             case "cloudflared-install":
@@ -57,7 +75,47 @@ public final class HelpCenter {
                 cmd(".mjt system install cloudflared", "Auto-detect OS/CPU, download cloudflared, chmod +x, verify --version");
                 cmd(".mjt system cloudflared check", "Check configured/cloudflared binary with --version");
                 cmd(".mjt system cloudflared show", "Show download path, last asset, version, status");
+                cmd(".mjt system install proot-distro", "Install MJT-native PRoot + portable Python + upstream proot-distro");
+                cmd(".mjt system install proot", "Install only MJT-native PRoot for this host CPU");
+                cmd(".mjt system install python", "Install only MJT portable Python");
+                cmd(".mjt system proot-distro check", "Verify the Environment Engine");
+                cmd(".mjt system proot-distro show", "Show managed paths, architecture, XDG storage and readiness");
                 cmd(".mjt tunnel set cloudflared <path>", "Manually set cloudflared binary path");
+                return;
+
+            case "service":
+            case "services":
+            case "guest-service":
+                title("Guest Service Manager Help");
+                System.out.println("All managed services run inside PRootFS and must bind to loopback.");
+                cmd(".mjt service list", "List registered PRoot services");
+                cmd(".mjt service add api node /home/container/server/api npm run start", "Register a Node service");
+                cmd(".mjt service add app java /home/container/server/app java -jar app.jar", "Register a Java service");
+                cmd(".mjt service set api port 3001", "Store the expected local port");
+                cmd(".mjt service set api public-hostname api.example.com", "Set Cloudflare hostname metadata");
+                cmd(".mjt service start|stop|restart <id>", "Control one guest service");
+                cmd(".mjt service logs <id> [lines]", "Show in-memory process logs");
+                cmd(".mjt service health <id>", "Run one immediate HTTP health check");
+                cmd(".mjt service set api restart-policy on-failure", "Restart only after a non-zero exit");
+                cmd(".mjt service set api restart-max 3", "Cap consecutive automatic restarts");
+                cmd(".mjt service set api health-enabled true", "Enable periodic loopback health checks");
+                cmd(".mjt service set api health-action restart", "Restart after the configured failed-health threshold");
+                cmd(".mjt service set api autostart true", "Start this service after the MJT Core starts");
+                cmd(".mjt service publish <id>", "Create/update Tunnel route metadata for loopback HTTP origin");
+                cmd(".mjt service unpublish <id>", "Remove the managed Tunnel route metadata");
+                System.out.println(YELLOW + "Security:" + RESET + " service commands are intentionally not auto-started after MJT restart.");
+                return;
+
+            case "code":
+            case "openvscode":
+                title("OpenVSCode Server Help");
+                cmd(".mjt code show", "Show managed OpenVSCode configuration/status");
+                cmd(".mjt code set binary /opt/openvscode-server/current/bin/openvscode-server", "Set guest executable path");
+                cmd(".mjt code set port 3000", "Set loopback port");
+                cmd(".mjt code set workspace /home/container/server", "Set project folder inside PRoot workspace");
+                cmd(".mjt code token reset", "Rotate the browser connection token while stopped");
+                cmd(".mjt code start", "Run OpenVSCode Server in PRootFS");
+                cmd(".mjt code stop", "Stop managed OpenVSCode Server");
                 return;
 
             case "shell":
@@ -121,11 +179,47 @@ public final class HelpCenter {
             case "minecraft":
             case "mc":
                 title("Minecraft Help");
-                cmd(".mjt minecraft start", "Start managed Minecraft target");
-                cmd(".mjt minecraft start <command>", "Start target with custom command");
-                cmd(".mjt minecraft stop", "Send stop to Minecraft");
-                cmd(".mjt minecraft kill", "Force kill target");
-                cmd(".mjt minecraft status", "Show target status");
+                cmd(".mjt minecraft profile list", "List Velocity/SMP/Lobby profiles");
+                cmd(".mjt minecraft profile show <name>", "Show profile workdir/command");
+                cmd(".mjt minecraft profile use <name>", "Set active profile");
+                cmd(".mjt minecraft profile add <name> <workdir> <command>", "Add profile");
+                cmd(".mjt minecraft profile runtime <name> proot", "Run a stopped profile with guest Java/PRootFS");
+                cmd(".mjt minecraft profile runtime <name> host", "Return a stopped profile to host runtime");
+                cmd(".mjt minecraft installer show", "Show installer sources and defaults");
+                cmd(".mjt minecraft install velocity velocity latest", "Download/install latest Velocity profile");
+                cmd(".mjt minecraft install paper smp latest --accept-eula", "Download/install latest Paper profile");
+                cmd(".mjt minecraft install purpur lobby latest --accept-eula", "Download/install latest Purpur profile");
+                cmd(".mjt minecraft start", "Start active profile in its own workdir");
+                cmd(".mjt minecraft start <profile>", "Start selected profile without stopping others");
+                cmd(".mjt minecraft stop <profile>", "Send stop command to one profile");
+                cmd(".mjt minecraft kill <profile>", "Force kill one profile");
+                cmd(".mjt minecraft status", "Show all Minecraft process statuses");
+                cmd(".mjt minecraft send <profile> <cmd>", "Send command to a specific server");
+                cmd(".mjt minecraft attach <profile>", "Route no-prefix console input to one running profile");
+                cmd(".mjt minecraft logs <profile>", "Show recent logs for one profile");
+                return;
+
+            case "panel":
+            case "control-panel":
+                title("MJT Control Panel Help");
+                cmd(".mjt panel show", "Show legacy static panel config and token status");
+                cmd(".mjt panel api show", "Show v1 loopback control API status");
+                cmd(".mjt panel api set port 9091", "Set v1 API listener port");
+                cmd(".mjt panel api start", "Start v1 control API");
+                cmd(".mjt panel api stop", "Stop v1 control API");
+                cmd(".mjt panel set enabled true", "Enable legacy local panel service");
+                cmd(".mjt panel set host 127.0.0.1", "Bind panel locally");
+                cmd(".mjt panel set port 9090", "Set panel port");
+                cmd(".mjt panel install", "Download frontend from GitHub URL in core/app.properties");
+                cmd(".mjt panel update", "Download and replace frontend static files");
+                cmd(".mjt panel frontend show", "Show frontend URL, install path, installed version");
+                cmd(".mjt panel frontend set url <url>", "Save frontend zip URL into core/app.properties");
+                cmd(".mjt panel frontend set tag 0.0.1", "Use a GitHub tag source zip URL");
+                cmd("POST /api/minecraft/install", "Panel API: install velocity/paper/purpur into a profile");
+                cmd(".mjt panel token reset", "Generate a new panel token");
+                cmd(".mjt panel start", "Start web panel");
+                cmd(".mjt panel stop", "Stop web panel");
+                System.out.println(YELLOW + "Security:" + RESET + " keep panel on 127.0.0.1 unless intentionally published through a protected tunnel.");
                 return;
 
             case "ssh":

@@ -1,12 +1,22 @@
 package main.java.mjt.command;
 
 import main.java.mjt.services.cloudflare.CloudflareDnsService;
+import main.java.mjt.services.code.OpenVscodeService;
 import main.java.mjt.services.gateway.GatewayService;
 import main.java.mjt.services.http.HttpService;
 import main.java.mjt.services.https.HttpsService;
+import main.java.mjt.services.panel.PanelApiV1Service;
+import main.java.mjt.services.panel.PanelService;
+import main.java.mjt.services.panel.PanelFrontendInstallerService;
+import main.java.mjt.services.minecraft.MinecraftInstallerService;
+import main.java.mjt.services.minecraft.MinecraftProcessManagerService;
+import main.java.mjt.services.workspace.WorkspaceRegistryService;
+import main.java.mjt.services.workspace.WorkspaceFileService;
 import main.java.mjt.services.sshd.SshServerService;
 import main.java.mjt.services.cloudflare.tunnel.CloudflareTunnelService;
-import main.java.mjt.services.cloudflare.tunnel.GuestWebsiteService;
+import main.java.mjt.services.proot.ProotService;
+import main.java.mjt.services.proot.ProotDistroService;
+import main.java.mjt.services.service.GuestServiceManager;
 
 import main.java.mjt.system.CommandGuard;
 import main.java.mjt.system.KeepAliveBotService;
@@ -28,12 +38,22 @@ public record CommandContext(
         SystemDownloadService systemDownloadService,
         CloudflareDnsService cloudflareDnsService,
         CloudflareTunnelService cloudflareTunnelService,
-        GuestWebsiteService guestWebsiteService,
         SshServerService sshServerService,
         GatewayService gatewayService,
         HttpService httpService,
         HttpsService httpsService,
+        PanelService panelService,
+        PanelFrontendInstallerService panelFrontendInstallerService,
+        MinecraftProcessManagerService minecraftProcessManagerService,
+        MinecraftInstallerService minecraftInstallerService,
         TargetProcessService targetProcessService,
-        KeepAliveBotService keepAliveBotService
+        KeepAliveBotService keepAliveBotService,
+        WorkspaceRegistryService workspaceRegistryService,
+        WorkspaceFileService workspaceFileService,
+        ProotService prootService,
+        ProotDistroService prootDistroService,
+        OpenVscodeService openVscodeService,
+        GuestServiceManager guestServiceManager,
+        PanelApiV1Service panelApiV1Service
 ) {
 }

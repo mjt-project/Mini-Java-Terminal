@@ -1,23 +1,26 @@
 # Mini Java Terminal
 
-> Java-based control plane for terminal, website preview, Cloudflare Tunnel, SSH/SFTP, Gateway routing, Minecraft target process, and utility services inside restricted container hosting environments.
+> Java-based control plane for terminal workflows, managed runtime tools, secure access, and service operations inside restricted container-hosting environments.
 
-![Version](https://img.shields.io/badge/version-3.0.0--SNAPSHOT%2B1-blue)
-![Status](https://img.shields.io/badge/status-SNAPSHOT-orange)
-![Runtime](https://img.shields.io/badge/runtime-Java-green)
+![Version](https://img.shields.io/badge/version-3.0.0--SNAPSHOT%2B16-blue)
+[![Build](https://img.shields.io/badge/build-Maven%20%2B%20Java%2017-2ea44f?style=flat-square)](#build)
+[![Status](https://img.shields.io/badge/status-SNAPSHOT-orange)](#project-status)
+[![License](https://img.shields.io/badge/license-MIT-0d74ce?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Linux%20containers-4c8bf5?style=flat-square)](#requirements)
 
-## Project Status
+---
 
-`3.0.0-SNAPSHOT+1` is a development snapshot. It is intended to stabilize the new MJT service layout, server workspace layout, guest quick tunnel flow, cloudflared auto-installer, and help index before the next stable release.
 
-This snapshot is not a final production release.
+Mini Java Terminal (MJT) is a Java application for running and managing terminal-oriented services where the host environment is restricted, minimal, or panel-managed. It keeps MJT-owned files inside its workspace, exposes a controlled command model, and provides optional integrations for tunnels, SSH/SFTP, website preview, Minecraft targets, and PRoot-based guest environments.
+
+> **Development snapshot:** this branch is under active development. Commands, storage layout, and installer internals may change before a stable release.
 
 ---
 
 ## Table of Contents
 
 - [Overview](#overview)
-- [Why This Version Exists](#why-this-version-exists)
+- [Why This Project Exists](#why-this-project-exists)
 - [Core Features](#core-features)
 - [Architecture](#architecture)
 - [Directory Layout](#directory-layout)
@@ -25,705 +28,332 @@ This snapshot is not a final production release.
 - [Build](#build)
 - [Quick Start](#quick-start)
 - [Command Model](#command-model)
-- [Website Service](#website-service)
-- [Guest Quick Tunnel](#guest-quick-tunnel)
-- [Cloudflared Auto Installer](#cloudflared-auto-installer)
-- [Cloudflare Tunnel Modes](#cloudflare-tunnel-modes)
-- [Gateway Router](#gateway-router)
-- [SSH/SFTP](#sshsftp)
-- [Minecraft Target](#minecraft-target)
-- [KeepAlive Bot](#keepalive-bot)
-- [Configuration Files](#configuration-files)
+- [Managed System Tools](#managed-system-tools)
+- [Networking and Remote Access](#networking-and-remote-access)
 - [Security Notes](#security-notes)
-- [Troubleshooting](#troubleshooting)
-- [Roadmap](#roadmap)
+- [Third-Party Notices](#third-party-notices)
+- [License](#license)
+- [Contributing](#contributing)
 - [Changelog](#changelog)
-
 ---
 
 ## Overview
 
-Mini Java Terminal, or MJT, is a Java application designed to run in restricted hosting environments where normal shell access, custom startup commands, or direct public ports may be limited.
+MJT is designed for hosts where you may have a Java runtime and a writable project directory, but do not necessarily have root access, a full Linux package manager, Docker, or unrestricted process control.
 
-MJT acts as a **control plane**. It manages local services, command routing, configuration, logs, tunnel processes, Minecraft server processes, and system utilities.
+It provides a focused control plane for:
 
-MJT does **not** try to replace Cloudflare Tunnel, SSHD, HTTP servers, or Minecraft servers. Instead, it coordinates them safely from one command interface.
+- controlled shell-command execution;
+- Cloudflare Tunnel lifecycle and quick-tunnel workflows;
+- SSH/SFTP access managed by MJT;
+- gateway and website-preview services;
+- Minecraft target process management;
+- managed runtime prerequisites such as TAR, portable Python, PRoot, and `proot-distro`;
+- isolated PRoot guest-environment workflows.
+
+MJT is not a replacement for a full VM, Docker daemon, or host package manager. It is intended to make limited hosting environments more usable while keeping installation and runtime state under the project workspace.
 
 ---
 
-## Why This Version Exists
+## Why This Project Exists
 
-Previous MJT builds mixed configuration, website files, runtime data, and service state in one place. This snapshot reorganizes the project so that MJT can grow into a stable service manager.
+Restricted game-panel, Java-container, and lightweight hosting environments often provide only part of a normal Linux server experience:
 
-The main goals are:
+- no root shell;
+- no `apt`, `apk`, or `dnf` access;
+- no direct file manager or SFTP;
+- no permanent public port;
+- no Docker daemon;
+- limited startup-command control.
 
-```text
-1. Keep MJT runtime/config inside /home/container/MJT.
-2. Keep user/server data inside /home/container/server.
-3. Support local multi-site HTTP hosting.
-4. Publish guest websites through Cloudflare Quick Tunnel.
-5. Make guest mode work without Cloudflare tokens.
-6. Auto-install cloudflared based on OS and CPU architecture.
-7. Keep Gateway focused on TCP routing instead of public web hosting.
-8. Prepare for future custom domain and user/workspace support.
-```
+MJT provides a structured way to operate services within those constraints without requiring the application to own the entire host.
 
 ---
 
 ## Core Features
 
-- Strict command routing with `.mjt` and `.command` namespaces.
-- Local website hosting on `127.0.0.1` ports.
-- Guest website creation with temporary `trycloudflare.com` public URL.
-- Cloudflare Quick Tunnel support without account or token.
-- Cloudflared binary downloader and checker.
-- Cloudflare named tunnel support for advanced use cases.
-- Gateway TCP router for Minecraft, SSH/SFTP, and manual TCP forwarding.
-- Embedded SSH/SFTP server.
-- Managed Minecraft target process.
-- Minecraft KeepAlive bot service.
-- Service-based config layout.
-- Runtime logs and system task folders.
+### Terminal and command control
+
+- Command namespaces that distinguish MJT commands from shell commands.
+- Controlled shell execution through `.command <shell-command>`.
+- Built-in help index through `.mjt help` or `.help`.
+- MJT-owned runtime files and persistent settings.
+
+### Tunnel, website, and gateway tools
+
+- Cloudflared discovery and managed installation.
+- Cloudflare Tunnel integration.
+- Website-preview and gateway workflows.
+- Optional public routing through supported tunnel modes.
+
+### SSH and SFTP
+
+- Embedded SSH server lifecycle management.
+- SSH/SFTP access for MJT-managed workspace use cases.
+- Configurable host, port, user, and authentication settings.
+
+### Managed system runtime
+
+- TAR discovery and managed bootstrap.
+- Portable Python installation for supported Linux targets.
+- Native PRoot installation.
+- Upstream `proot-distro` installation and execution through an MJT-managed launcher.
+- Linux host detection using kernel data, CPU architecture, bitness, libc, and `/etc/os-release`.
+
+### Guest environments
+
+- PRoot-based Linux environment workflows.
+- Isolated XDG data and cache locations under MJT-controlled storage.
+- Catalog, install, activation, and lifecycle operations for supported guest environments.
 
 ---
 
 ## Architecture
 
-MJT is split into two main zones.
-
 ```text
-/home/container/MJT
+User / Panel Console
+        │
+        ▼
+Mini Java Terminal
+        │
+        ├── Command Dispatcher
+        ├── Shell / Service Controllers
+        ├── SSH / SFTP Server
+        ├── Cloudflared / Tunnel Services
+        ├── Gateway / Website Services
+        ├── Minecraft Process Services
+        └── Managed Runtime Services
+                ├── TAR
+                ├── Portable Python
+                ├── PRoot
+                └── proot-distro
 ```
 
-This is the MJT control area. It stores configuration, logs, runtime state, downloads, and internal service metadata.
-
-```text
-/home/container/server
-```
-
-This is the user/server data area. It stores website content and Minecraft server workspaces.
-
-High-level flow for guest website publishing:
-
-```text
-Browser
-  ↓
-Cloudflare Quick Tunnel / trycloudflare.com
-  ↓
-cloudflared process inside container
-  ↓
-Local HTTP site on 127.0.0.1:<port>
-  ↓
-/home/container/server/website/www/guest/<guest-id>/main
-```
+MJT controls its own files, commands, state, and child processes. It does not attempt to replace the host operating system or bypass hosting-provider restrictions.
 
 ---
 
 ## Directory Layout
 
-Recommended runtime layout:
+The exact directory structure may evolve during development. A typical MJT runtime layout is:
 
 ```text
-/home/container/
-├── MJT/
-│   ├── core/
-│   │   └── app.properties
-│   │
-│   ├── services/
-│   │   ├── ssh/
-│   │   ├── cloudflare/
-│   │   │   ├── account.properties
-│   │   │   ├── ddns-public-ipv4/
-│   │   │   └── tunnel/
-│   │   ├── http/
-│   │   │   └── sites/
-│   │   ├── tcp/
-│   │   ├── gateway/
-│   │   ├── minecraft/
-│   │   ├── https/
-│   │   └── bot/
-│   │
-│   ├── system/
-│   │   ├── downloads/
-│   │   │   └── cloudflared/
-│   │   └── tasks/
-│   │
-│   ├── runtime/
-│   │   ├── pids/
-│   │   └── cache/
-│   │
-│   └── logs/
-│
-└── server/
-    ├── website/
-    │   └── www/
-    │       ├── main/
-    │       ├── docs/
-    │       ├── panel/
-    │       └── guest/
-    │
-    └── Minecraft/
-        ├── Velocity/
-        ├── smp/
-        └── lobby/
+MJT/
+├── system/
+│   ├── bin/                 # MJT-managed launchers and native helpers
+│   ├── downloads/           # Verified temporary downloads
+│   ├── python/
+│   │   └── current/         # Portable Python runtime
+│   └── proot-distro/        # Upstream runtime data, cache, and site packages
+├── workspace/               # MJT-managed user/project workspace
+├── logs/                    # Application and installer logs
+└── state/                   # Persistent configuration/state
 ```
+
+Do not manually delete managed runtime directories while their corresponding services are running.
 
 ---
 
 ## Requirements
 
-Minimum requirements:
+### Build requirements
 
-```text
-Java runtime compatible with the project build
-Maven for building from source
-Network access for cloudflared auto-download
-Linux container recommended
-```
+- Java 17 or newer
+- Maven 3.9 or newer
+- Git
 
-Optional requirements:
+### Runtime requirements
 
-```text
-cloudflared binary for Cloudflare Tunnel
-Allocated public port if using Gateway
-Cloudflare account/token only for named tunnel or stable custom domain workflows
-```
+- Linux host environment
+- Writable MJT project directory
+- Outbound HTTPS access for managed downloads
+- A supported CPU architecture for portable runtime components
 
-Guest Quick Tunnel does **not** require a Cloudflare token.
+Current managed Python/PRoot targets are intended for native:
+
+- `x86_64` / `amd64`
+- `aarch64` / `arm64`
+
+MJT inspects:
+
+- `uname -sr`
+- `uname -m`
+- `getconf LONG_BIT`
+- libc indicators
+- `/etc/os-release`
+
+This allows installers to select the appropriate upstream runtime asset for the host.
 
 ---
 
 ## Build
 
-Build with Maven:
-
 ```bash
+git clone https://github.com/mjt-project/Mini-Java-Terminal.git
+cd Mini-Java-Terminal
+git checkout dev
 mvn -U clean package
 ```
 
-Check version after running MJT:
+The built server artifact is generated under:
 
 ```text
-.mjt --version
+target/server.jar
 ```
 
-Expected version:
+Run it with the startup command appropriate for the host panel or local environment:
 
-```text
-Mini Java Terminal v3.0.0-SNAPSHOT+1
+```bash
+java -jar target/server.jar
 ```
 
 ---
 
 ## Quick Start
 
-After starting MJT, check help:
+After MJT starts:
 
 ```text
 .mjt help
 ```
 
-Install or check `cloudflared`:
+Install managed prerequisites as needed:
 
 ```text
-.mjt system install cloudflared
-.mjt system cloudflared check
+.mjt system install tar
+.mjt system install python
+.mjt system install proot
+.mjt system install proot-distro
 ```
 
-Create a guest website:
+Use shell commands through the command namespace:
 
 ```text
-.mjt website guest create
+.command pwd
+.command ls -la
+.command java -version
 ```
 
-Show guest sites:
-
-```text
-.mjt website guest list
-```
-
-Show a specific guest site:
-
-```text
-.mjt website guest show <guest-id>
-```
+The exact available commands depend on the current branch and enabled services.
 
 ---
 
 ## Command Model
 
-MJT uses strict routing.
+MJT separates internal commands from host-shell commands.
 
-```text
-.mjt <command>       MJT internal command
-.command <command>   Force shell command
-no prefix            Minecraft console input only when target mode is active
-```
+| Purpose | Example |
+|---|---|
+| MJT help | `.mjt help` |
+| Shell command | `.command ls -la` |
+| Start Minecraft target | `.mjt minecraft start` |
+| Install TAR | `.mjt system install tar` |
+| Install Python | `.mjt system install python` |
+| Install PRoot | `.mjt system install proot` |
+| Install proot-distro | `.mjt system install proot-distro` |
 
-Examples:
-
-```text
-.mjt help
-.mjt website list
-.mjt website guest create
-.command ls
-.mjt minecraft start
-.command minecraft
-```
-
-No-prefix shell execution is intentionally disabled for safety.
+This separation reduces accidental execution of host commands and keeps administrative actions explicit.
 
 ---
 
-## Website Service
+## Managed System Tools
 
-Website sites run locally. They are not public by themselves unless exposed through Cloudflare Tunnel or another proxy.
+### TAR
 
-Default local site:
+Portable runtime archives are extracted through a TAR command rather than a custom archive parser.
 
-```text
-main -> http://127.0.0.1:8081
-root -> /home/container/server/website/www/main
-```
+Resolution order:
 
-Website commands:
+1. existing MJT-managed TAR launcher;
+2. host `tar`, `bsdtar`, or BusyBox TAR;
+3. supported host package-manager installation;
+4. static fallback bootstrap selected for the detected Linux CPU architecture.
 
-```text
-.mjt website list
-.mjt website show main
-.mjt website add docs 127.0.0.1 8082 /home/container/server/website/www/docs
-.mjt website start docs
-.mjt website stop docs
-.mjt website restart docs
-.mjt website set docs spa true
-```
+### Portable Python
 
-Legacy HTTP commands remain supported:
+MJT selects an upstream portable CPython asset that matches the detected Linux target triple. Downloads are verified against published SHA-256 metadata before installation.
 
-```text
-.mjt http site list
-.mjt http site add ...
-.mjt http site start ...
-```
+### PRoot
+
+MJT can install a native PRoot binary for supported Linux architectures and validates it before use.
+
+### proot-distro
+
+MJT uses upstream `proot-distro` as a separate component for rootless guest-environment management. MJT does not claim ownership of that upstream project.
+
+See [Third-Party Notices](#third-party-notices) for licensing and attribution.
 
 ---
 
-## Guest Quick Tunnel
+## Networking and Remote Access
 
-Guest mode is for temporary preview websites.
+### Cloudflare Tunnel
 
-Command:
+MJT can use cloudflared for tunnel workflows. Tunnel connectivity and public hostname routing depend on the Cloudflare configuration and the host network policy.
 
-```text
-.mjt website guest create
-```
+### SSH and SFTP
 
-MJT will:
-
-```text
-1. Generate a guest ID.
-2. Create a guest website folder.
-3. Generate a default index.html.
-4. Pick a free local port from 8091 upward.
-5. Start a local HTTP site on 127.0.0.1:<port>.
-6. Start cloudflared quick tunnel.
-7. Parse the trycloudflare.com URL.
-8. Save the public URL to guest config.
-```
-
-Example output concept:
-
-```text
-Guest website created
-
-ID      : guest-a8f31
-Root    : /home/container/server/website/www/guest/guest-a8f31/main
-Local   : http://127.0.0.1:8091
-Public  : https://random-name.trycloudflare.com
-Mode    : Cloudflare Quick Tunnel
-```
-
-Important:
-
-```text
-Guest URLs are temporary.
-A trycloudflare.com URL may change after MJT, cloudflared, or container restart.
-```
-
-Guest commands:
-
-```text
-.mjt website guest list
-.mjt website guest show <guest-id>
-.mjt website guest stop <guest-id>
-.mjt website guest restart <guest-id>
-.mjt website guest remove <guest-id>
-```
-
----
-
-## Cloudflared Auto Installer
-
-MJT includes a downloader for `cloudflared`.
-
-Command:
-
-```text
-.mjt system install cloudflared
-```
-
-The installer should:
-
-```text
-1. Detect operating system.
-2. Detect CPU architecture.
-3. Select a matching cloudflared binary.
-4. Download it into MJT/system/downloads/cloudflared.
-5. Mark it executable on Linux.
-6. Run cloudflared --version.
-7. Save the working path to tunnel.cloudflared.path.
-```
-
-Useful commands:
-
-```text
-.mjt system download cloudflared
-.mjt system cloudflared check
-.mjt system cloudflared show
-.mjt cloudflared install
-.mjt tunnel binary install
-```
-
-Recommended download folder:
-
-```text
-/home/container/MJT/system/downloads/cloudflared
-```
-
----
-
-## Cloudflare Tunnel Modes
-
-MJT supports three Cloudflare Tunnel modes.
-
-### Quick Mode
-
-Used for guest preview links.
-
-```text
-cloudflared tunnel --url http://127.0.0.1:<port>
-```
-
-No token required.
-
-### Token Mode
-
-Used for named tunnels from Cloudflare Dashboard/API.
-
-```text
-cloudflared tunnel run --token <token>
-```
-
-Requires a tunnel token.
-
-### Config Mode
-
-Used for named tunnel config files and stable hostname routing.
-
-```text
-cloudflared tunnel --config <config.yml> run <tunnel-name-or-id>
-```
-
-Requires named tunnel setup.
-
----
-
-## Gateway Router
-
-Gateway is a TCP router/forwarder. It should not be the default public web path.
-
-Recommended role:
-
-```text
-Minecraft TCP fallback
-SSH/SFTP proxy
-manual TCP route forwarding
-```
-
-Recommended defaults:
-
-```properties
-gateway.route.http.enabled=false
-gateway.route.https.enabled=false
-gateway.tcp.default=close
-```
-
-Commands:
-
-```text
-.mjt gateway show
-.mjt gateway start
-.mjt gateway stop
-.mjt gateway route add mc 127.0.0.1 25565
-.mjt gateway default mc
-```
-
----
-
-## SSH/SFTP
-
-MJT includes embedded SSH/SFTP support.
-
-Recommended default:
-
-```properties
-ssh.host=127.0.0.1
-ssh.port=2022
-ssh.root=/home/container
-ssh.terminal.mode=basic
-```
-
-Commands:
-
-```text
-.mjt ssh show
-.mjt ssh set host 127.0.0.1
-.mjt ssh set port 2022
-.mjt ssh set user admin
-.mjt ssh set pass <password>
-.mjt ssh set root /home/container
-.mjt ssh set mode basic
-.mjt ssh set mode real-tty
-.mjt ssh start
-.mjt ssh stop
-.mjt ssh status
-```
-
----
-
-## Minecraft Target
-
-MJT can run Minecraft as a managed target process.
-
-Commands:
-
-```text
-.mjt minecraft start
-.mjt minecraft start <custom-command>
-.mjt minecraft stop
-.mjt minecraft kill
-.mjt minecraft status
-```
-
-Recommended workspace:
-
-```text
-/home/container/server/Minecraft
-```
-
-When Minecraft route mode is active, no-prefix input goes to the Minecraft process console.
-
----
-
-## KeepAlive Bot
-
-MJT includes a Minecraft KeepAlive bot service.
-
-Commands:
-
-```text
-.mjt bot show
-.mjt bot start
-.mjt bot stop
-.mjt bot set enabled true
-.mjt bot set host 127.0.0.1
-.mjt bot set port 25565
-.mjt bot set username MJT_Renew
-.mjt bot set reconnect 30
-```
-
-The bot may auto-start and auto-stop with the Minecraft target depending on config.
-
----
-
-## Configuration Files
-
-Main config directory:
-
-```text
-/home/container/MJT
-```
-
-Important files:
-
-```text
-MJT/core/app.properties
-MJT/services/http/http.properties
-MJT/services/http/sites/sites.properties
-MJT/services/cloudflare/tunnel/tunnel.properties
-MJT/services/cloudflare/ddns-public-ipv4/ddns.properties
-MJT/services/gateway/gateway.properties
-MJT/services/tcp/tcp-routes.properties
-MJT/services/ssh/ssh.properties
-MJT/services/minecraft/minecraft.properties
-MJT/services/bot/keepalive.properties
-```
-
-Important tunnel keys:
-
-```properties
-tunnel.enabled=false
-tunnel.provider=cloudflare
-tunnel.mode=quick
-tunnel.autoStart=false
-tunnel.cloudflared.path=cloudflared
-tunnel.local.url=http://127.0.0.1:8081
-tunnel.publicUrl=
-tunnel.token=
-```
-
-Important guest keys:
-
-```properties
-website.guest.ids=guest-a8f31
-website.guest.rootBase=/home/container/server/website/www/guest
-website.guest.nextPort=8091
-website.guest.guest-a8f31.root=/home/container/server/website/www/guest/guest-a8f31/main
-website.guest.guest-a8f31.local=http://127.0.0.1:8091
-website.guest.guest-a8f31.publicUrl=https://example.trycloudflare.com
-website.guest.guest-a8f31.status=running
-website.guest.guest-a8f31.tunnel=running
-```
+MJT can run an embedded SSH server for controlled workspace access. Always use a strong password or key-based authentication where supported, avoid exposing the service without a firewall/tunnel policy, and restart the SSH service after changing credentials.
 
 ---
 
 ## Security Notes
 
-Guest mode:
-
-```text
-No Cloudflare token
-No custom domain
-Temporary URL
-Suitable for preview/demo only
-```
-
-Named tunnel/custom domain mode:
-
-```text
-Requires Cloudflare setup
-May require token
-Should be used for stable/public websites
-Needs domain verification in future user/workspace design
-```
-
-Token handling rules:
-
-```text
-Do not log raw tokens
-Mask tokens in config/status output
-Store tokens only in service config
-Remove token when no longer needed
-```
+- Do not store tunnel tokens, passwords, or API credentials in source control.
+- Keep runtime downloads checksum-verified.
+- Prefer trusted upstream assets and pinned URLs where appropriate.
+- Treat remote shell access as production-sensitive.
+- Restrict public ports and use tunnels or access policies when possible.
+- Review third-party licenses before bundling, modifying, or redistributing dependencies.
 
 ---
 
-## Troubleshooting
+## Third-Party Notices
 
-### Guest create asks for token
+MJT may install, invoke, or integrate with third-party tools. Their licenses remain independent from the MJT source license.
 
-Guest Quick Tunnel should not ask for token.
+### PRoot-Distro
 
-Check tunnel mode:
+MJT acknowledges and thanks the **Termux `proot-distro`** project:
 
-```text
-.mjt tunnel show
-.mjt tunnel set mode quick
-```
+- Upstream repository: <https://github.com/termux/proot-distro>
+- Purpose: rootless Linux container management on Termux and regular Linux hosts
+- Upstream license: GNU General Public License, version 3.0 (GPL-3.0)
 
-Then retry:
+`proot-distro` is a separate upstream component. When MJT downloads, executes, bundles, redistributes, modifies, or incorporates its code, the applicable GPL-3.0 obligations for that component must be preserved.
 
-```text
-.mjt website guest create
-```
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the project notice and distribution guidance.
 
-### cloudflared is missing
-
-Install it:
-
-```text
-.mjt system install cloudflared
-```
-
-Or set path manually:
-
-```text
-.mjt tunnel set cloudflared /home/container/MJT/system/downloads/cloudflared/cloudflared
-```
-
-### Guest URL stays pending
-
-Check cloudflared output and process status:
-
-```text
-.mjt system cloudflared check
-.mjt website guest show <guest-id>
-.mjt website guest restart <guest-id>
-```
-
-### Website still uses /home/container/MJT/www
-
-This is an old config path. Move content to:
-
-```text
-/home/container/server/website/www
-```
-
-Then update site root:
-
-```text
-.mjt website set main root /home/container/server/website/www/main
-```
-
-### Gateway still forwards HTTP
-
-Disable HTTP route if using Cloudflare Tunnel for web:
-
-```text
-.mjt gateway set gateway.route.http.enabled false
-```
-
----
-
-## Roadmap
-
-Planned areas:
-
-```text
-custom domain verification
-named tunnel stable mode
-per-user workspace system
-Cloudflare token isolation per workspace
-Paper/Spigot plugin adapter
-rich console dashboard
-better process monitor for guest tunnels
-```
+> **Important licensing boundary:** MJT's own original source is released under MIT. This does **not** relicense GPL-3.0 code. If GPL-3.0 source from `proot-distro` is copied into or linked as part of an MJT distribution, the resulting distribution may need to be licensed and distributed under GPL-3.0 terms. Keep GPL components separate unless you have reviewed the applicable obligations.
 
 ---
 
 ## Changelog
 
-See [CHANGE.md](./CHANGE.md).
-Or **Full Changelog**: https://github.com/mjt-project/Mini-Java-Terminal/compare/2.5.0...3.0.0-SNAPSHOT+1
+**Full Changelog**: https://github.com/mjt-project/Mini-Java-Terminal/compare/2.5.0...3.0.0-SNAPSHOT+16
 
---- 
+---
+
+## License
+
+MJT original source code is licensed under the [MIT License](LICENSE).
+
+Third-party components retain their own licenses. In particular, upstream `proot-distro` is GPL-3.0 licensed; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+---
+
+## Contributing
+
+This project is actively evolving. Before opening a pull request:
+
+1. Build with Java 17.
+2. Run `mvn -U clean package`.
+3. Keep managed-runtime changes isolated and test on a supported Linux host.
+4. Do not commit credentials, tunnel tokens, or generated runtime directories.
+5. Include clear notes for changes affecting installers, storage layout, or public networking.
+
+---
 
 ## Disclaimer
 
-Mini Java Terminal (MJT) is provided for educational, development, and authorized server administration purposes only.
-
-The author and contributors are not responsible for any misuse, data loss, service interruption, account suspension, hosting-policy violation, security incident, or damage caused by the use or modification of this software.
-
-Users are responsible for ensuring that their use of MJT complies with the rules of their hosting provider, applicable laws, platform terms, and the permissions granted to them.
-
-MJT is not intended to be used as a hacking tool, sandbox escape, privilege escalation tool, malware loader, miner, or bypass tool for unauthorized access.
+MJT is provided as-is, without warranty. Hosting providers may restrict processes, filesystems, networking, symlinks, ports, package managers, or executable permissions. Always comply with the terms and technical limits of the host platform.
