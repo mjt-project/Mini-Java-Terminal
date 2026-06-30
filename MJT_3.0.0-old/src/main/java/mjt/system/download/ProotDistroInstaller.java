@@ -38,8 +38,8 @@ import main.java.mjt.system.StateStore;
  * {@code /etc/os-release} before selecting the matching PRoot release asset.</p>
  */
 public final class ProotDistroInstaller {
-    public static final String PROOT_VERSION = "5.3.0";
-    public static final String DEFAULT_PROOT_DISTRO_VERSION = "5.3.0";
+    public static final String PROOT_VERSION = "5.4.0";
+    public static final String DEFAULT_PROOT_DISTRO_VERSION = "5.4.0";
 
     private static final String PROOT_RELEASE_API =
             "https://api.github.com/repos/proot-me/proot/releases/tags/v" + PROOT_VERSION;
@@ -213,18 +213,47 @@ public final class ProotDistroInstaller {
         Asset wheelAsset = resolveProotDistroWheel(version, log);
         Path wheelDir = downloadsDir().resolve("proot-distro");
         Files.createDirectories(wheelDir);
-        Path wheel = wheelDir.resolve(wheelAsset.name() + ".download");
-        try {
-            downloadAndVerify(wheelAsset, wheel, MAX_WHEEL_BYTES, false, log);
-            log.accept("Installing verified upstream proot-distro==" + version + " (no dependencies)...");
-            runChecked(python, List.of(
-                    "-m", "pip", "install",
-                    "--disable-pip-version-check", "--no-input", "--no-deps", "--no-index", "--upgrade",
-                    "--target", sitePackagesDir().toString(), wheel.toString()
-            ), env, 180, log);
-        } finally {
-            Files.deleteIfExists(wheel);
-        }
+        Path downloaded =
+                wheelDir.resolve(wheelAsset.name() + ".download");
+            
+        Path wheel =
+                wheelDir.resolve(wheelAsset.name());
+            
+        downloadAndVerify(
+                wheelAsset,
+                downloaded,
+                MAX_WHEEL_BYTES,
+                false,
+                log
+        );
+        
+        moveAtomically(
+                downloaded,
+                wheel
+        );
+        
+        runChecked(
+                python,
+                List.of(
+                        "-m",
+                        "pip",
+                        "install",
+                        "--disable-pip-version-check",
+                        "--no-input",
+                        "--no-deps",
+                        "--no-index",
+                        "--upgrade",
+                        "--target",
+                        sitePackagesDir().toString(),
+                        wheel.toString()
+                ),
+                env,
+                180,
+                log
+        );
+        
+        Files.deleteIfExists(wheel);
+        
 
         writeEngineLauncher(engine, python);
         if (!canRun(engine, List.of("--version"), env, 12)) {
@@ -393,13 +422,18 @@ public final class ProotDistroInstaller {
     }
 
     private boolean canRun(Path executable, List<String> args, Map<String, String> environment, long timeoutSeconds) {
-        try {
-            readCommand(executable, args, environment, timeoutSeconds);
-            return true;
-        } catch (Exception ignored) {
-            return false;
-        }
+    try {
+
+        String output =
+                readCommand( executable, args, environment, timeoutSeconds);
+        System.out.println(output);
+        return true;
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        return false;
     }
+}
 
     private String readVersion(Path executable, Map<String, String> environment) {
         try {
